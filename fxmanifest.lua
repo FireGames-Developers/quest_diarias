@@ -3,21 +3,27 @@ game 'rdr3' -- RedM
 
 rdr3_warning "I acknowledge that this is a prerelease build of RedM, and I am aware my resources *will* become incompatible once RedM ships."
 
-author 'FTx'
-description 'Loja do Ilegal'
+author 'FTx3g'
+description 'Sistema de Missões Diárias'
 lua54 'yes'
-version '1.0.0'
+version '2.0.0'
 
-dependency 'vorp_menu'
+dependencies {
+    'vorp_core',
+    'vorp_menu',
+    'oxmysql'
+}
 
 shared_scripts {
     'config.lua'
 }
 
 client_scripts {
-	'client/*.lua',
+    'modules/*.lua',
+    'client/*.lua'
 }
 
 server_scripts {
-	'server/*.lua',
+    'server/init.lua',
+    'server/*.lua'
 }

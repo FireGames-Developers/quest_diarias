@@ -44,10 +44,14 @@ function OpenStore()
         },
         function(data, menu)
             if data.current.value == 'getQuest' then
-                DebugPrint("Opção Pegar selecionada")
+                DebugPrint("Opção Pegar missão selecionada")
+                -- Iniciar a missão configurada
+                TriggerServerEvent('quest_diarias:startQuest', Config.mission)
                 CloseStore()
             elseif data.current.value == 'deliveryQuest' then
-                DebugPrint("Opção Entregar selecionada")
+                DebugPrint("Opção Entregar missão selecionada")
+                -- Completar a missão configurada
+                TriggerServerEvent('quest_diarias:completeQuest', Config.mission)
                 CloseStore()
             end
         end,
