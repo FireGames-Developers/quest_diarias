@@ -96,7 +96,8 @@ function QuestManager.GetQuestInfo(questId)
         id = quest.Config.id,
         name = quest.Config.name,
         description = quest.Config.description,
-        rewards = quest.Config.rewards
+        rewards = quest.Config.rewards,
+        texts = quest.Config.texts
     }
 end
 

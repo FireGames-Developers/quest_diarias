@@ -50,8 +50,8 @@ function OpenStore()
                 CloseStore()
             elseif data.current.value == 'deliveryQuest' then
                 DebugPrint("Opção Entregar Itens selecionada")
-                -- Completar a missão configurada
-                TriggerServerEvent('quest_diarias:completeQuest', Config.mission)
+                -- Tentar entrega via cliente, validando que está carregando o faisão
+                TriggerEvent('quest_diarias:attemptDelivery', Config.mission)
                 CloseStore()
             end
         end,

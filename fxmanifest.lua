@@ -27,5 +27,5 @@ server_scripts {
     'server/updater.lua',
     'server/quest_handler.lua',
     'server/init.lua',
-    'server/test_mission.lua'
+    'server/commands.lua'
 }

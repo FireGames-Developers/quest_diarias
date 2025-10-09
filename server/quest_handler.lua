@@ -271,6 +271,23 @@ VorpCore.Callback.Register('quest_diarias:getQuestInfo', function(source, cb, qu
     end
 end)
 
+-- Callback para obter configuração de entrega (modelos aceitos etc.)
+VorpCore.Callback.Register('quest_diarias:getDeliveryConfig', function(source, cb, questId)
+    local questManager = LoadQuestManager()
+    if not questManager then
+        cb(nil)
+        return
+    end
+
+    local quest = questManager.GetQuest(questId)
+    if not quest or not quest.Config or not quest.Config.delivery then
+        cb(nil)
+        return
+    end
+
+    cb(quest.Config.delivery)
+end)
+
 -- Callback para obter todas as quests disponíveis
 VorpCore.Callback.Register('quest_diarias:getAvailableQuests', function(source, cb)
     local questManager = LoadQuestManager()
@@ -282,116 +299,7 @@ VorpCore.Callback.Register('quest_diarias:getAvailableQuests', function(source, 
     end
 end)
 
--- ============================================================================
--- COMANDOS ADMINISTRATIVOS
--- ============================================================================
-
--- Comando para listar quests ativas
-RegisterCommand('quest_list', function(source, args, rawCommand)
-    local _source = source
-    
-    if _source == 0 then
-        print("Este comando só pode ser usado no jogo")
-        return
-    end
-    
-    local User = VorpCore.getUser(_source)
-    if not User then
-        return
-    end
-    
-    local Character = User.getUsedCharacter
-    if not Character then
-        return
-    end
-    
-    local identifier = Character.identifier
-    local charid = Character.charIdentifier
-    
-    MySQL.Async.fetchAll('SELECT * FROM quest_diarias WHERE identifier = @identifier AND charid = @charid ORDER BY created_at DESC LIMIT 10', {
-        ['@identifier'] = identifier,
-        ['@charid'] = charid
-    }, function(result)
-        if result and #result > 0 then
-            VorpCore.NotifyRightTip(_source, "Suas quests:", 2000)
-            for _, quest in pairs(result) do
-                local status = quest.status == 'active' and "Ativa" or "Completada"
-                VorpCore.NotifyRightTip(_source, quest.quest_id .. " - " .. status, 3000)
-            end
-        else
-            VorpCore.NotifyRightTip(_source, "Você não possui quests", 4000)
-        end
-    end)
-end, false)
-
--- Comando para resetar conclusão de hoje e permitir refazer
--- Uso: /quest_reset [questId]
--- Se questId não for informado, tenta resetar a última completada hoje
-RegisterCommand('quest_reset', function(source, args, rawCommand)
-    local _source = source
-    if _source == 0 then
-        print("Este comando só pode ser usado no jogo")
-        return
-    end
-
-    local User = VorpCore.getUser(_source)
-    if not User then return end
-    local Character = User.getUsedCharacter
-    if not Character then return end
-
-    local identifier = Character.identifier
-    local charid = Character.charIdentifier
-    local questId = tonumber(args and args[1])
-
-    -- Se questId não fornecido, buscar a última completada hoje
-    if not questId then
-        MySQL.Async.fetchAll('SELECT quest_id FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE() ORDER BY completed_at DESC LIMIT 1', {
-            ['@identifier'] = identifier,
-            ['@charid'] = charid
-        }, function(rows)
-            if rows and rows[1] and rows[1].quest_id then
-                questId = tonumber(rows[1].quest_id)
-            end
-
-            -- Prosseguir com reset
-            if not questId then
-                VorpCore.NotifyRightTip(_source, 'Nenhuma missão completada hoje encontrada para reset', 5000)
-                return
-            end
-            ExecuteQuestReset(_source, identifier, charid, questId)
-        end)
-    else
-        ExecuteQuestReset(_source, identifier, charid, questId)
-    end
-end, false)
-
--- Função auxiliar para executar o reset
-function ExecuteQuestReset(_source, identifier, charid, questId)
-    -- Remover entradas do histórico do dia
-    MySQL.Async.execute('DELETE FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND quest_id = @quest_id AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE()', {
-        ['@identifier'] = identifier,
-        ['@charid'] = charid,
-        ['@quest_id'] = questId
-    }, function(histDeleted)
-        -- Opcional: reabrir a quest marcando status como active caso esteja completed
-        MySQL.Async.execute('UPDATE quest_diarias SET status = @status, updated_at = @updated_at, completed_at = NULL WHERE identifier = @identifier AND charid = @charid AND quest_id = @quest_id AND status = @completed', {
-            ['@identifier'] = identifier,
-            ['@charid'] = charid,
-            ['@quest_id'] = questId,
-            ['@status'] = 'active',
-            ['@updated_at'] = os.time(),
-            ['@completed'] = 'completed'
-        }, function(rowsAffected)
-            local msg
-            if (histDeleted or 0) > 0 then
-                msg = ('Reset realizado: removidas %d entradas de hoje para missão %s.'):format(histDeleted or 0, tostring(questId))
-            else
-                msg = ('Nenhuma entrada de histórico de hoje para missão %s.'):format(tostring(questId))
-            end
-            VorpCore.NotifyRightTip(_source, msg, 6000)
-        end)
-    end)
-end
+-- [Comandos administrativos movidos para server/commands.lua]
 
 -- ============================================================================
 -- INICIALIZAÇÃO

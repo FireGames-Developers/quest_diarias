@@ -63,7 +63,8 @@ quest_diarias/
 │   ├── init.lua             # Inicialização inteligente com VORP Core
 │   ├── database.lua         # Gerenciamento automático do banco de dados
 │   ├── updater.lua          # Sistema de auto-atualização via GitHub
-│   └── quest_handler.lua    # Manipulação server-side das missões
+│   ├── quest_handler.lua    # Manipulação server-side das missões
+│   └── commands.lua         # Comandos consolidados (/quest, /quest_list, /quest_reset, /quest_test)
 ├── modules/
 │   ├── blips.lua           # Sistema de blips no mapa
 │   ├── menu.lua            # Interface do menu
@@ -94,7 +95,7 @@ Config.npc = {
 -- Configurações de Auto-Update
 Config.AutoUpdate = {
     Enabled = true,                                                    -- Ativar sistema de auto-update
-    Repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
+    Repository = "FireGames-Developers/quest_diarias",                 -- Repositório GitHub (formato owner/repo)
     Branch = "main",                                                   -- Branch para verificar
     CheckInterval = 60,                                               -- Intervalo de verificação (em minutos)
     AutoDownload = false,                                             -- Download automático (recomendado: false)
@@ -143,12 +144,13 @@ O sistema inclui verificação automática de atualizações via GitHub API:
 
 ### Configurações de Auto-Update
 
-- **enabled**: Ativar/desativar o sistema
-- **repository**: URL do repositório GitHub
-- **checkInterval**: Intervalo entre verificações (em ms)
-- **autoDownload**: Download automático (desabilitado por segurança)
-- **backupBeforeUpdate**: Criar backup antes de atualizar
-- **notifyAdmins**: Notificar administradores sobre atualizações
+- `Enabled`: Ativar/desativar o sistema
+- `Repository`: Repositório GitHub no formato `owner/repo` (ex.: `FireGames-Developers/quest_diarias`)
+- `Branch`: Branch para verificar
+- `CheckInterval`: Intervalo entre verificações (em minutos; `0` para apenas no start)
+- `AutoDownload`: Download automático (desabilitado por segurança)
+- `BackupBeforeUpdate`: Criar backup antes de atualizar
+- `NotifyAdmins`: Notificar administradores sobre atualizações
 
 ### Funcionamento
 
@@ -208,7 +210,9 @@ CREATE TABLE IF NOT EXISTS quest_diarias_history (
 ## 🔧 Comandos
 
 ### Jogador/Admin
+- `/quest` — Exibe objetivos e informações da sua missão ativa
 - `/quest_list` — Lista suas últimas quests e status (ativa/completada)
+- `/quest_reset [id]` — Reseta a conclusão de hoje da missão informada (ou a última completada hoje)
 
 ### Teste de Missão
 - `/quest_test [distância]` — Spawna um faisão morto à sua frente (padrão 3.0m). Restrito via ACE.
