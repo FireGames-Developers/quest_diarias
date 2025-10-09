@@ -159,22 +159,45 @@ O sistema inclui verificação automática de atualizações via GitHub API:
 
 ## 📊 Banco de Dados
 
-O sistema gerencia automaticamente uma tabela `daily_quests`:
+O sistema gerencia automaticamente duas tabelas:
 
 ```sql
-CREATE TABLE IF NOT EXISTS daily_quests (
+-- Tabela principal de quests
+CREATE TABLE IF NOT EXISTS quest_diarias (
     id INT AUTO_INCREMENT PRIMARY KEY,
     identifier VARCHAR(50) NOT NULL,
-    quest_id INT NOT NULL,
-    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    charid INT NOT NULL,
+    quest_id VARCHAR(100) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    progress JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    INDEX idx_identifier_charid (identifier, charid),
+    INDEX idx_quest_id (quest_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);
+
+-- Histórico de quests completadas
+CREATE TABLE IF NOT EXISTS quest_diarias_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    identifier VARCHAR(50) NOT NULL,
+    charid INT NOT NULL,
+    quest_id VARCHAR(100) NOT NULL,
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    rewards_given TEXT,
+    INDEX idx_identifier_charid (identifier, charid),
+    INDEX idx_quest_id (quest_id),
+    INDEX idx_completed_at (completed_at)
 );
 ```
 
 ### Limpeza Automática
 
-- Registros são automaticamente removidos após 30 dias
-- Event automático executa diariamente à meia-noite
-- Comando manual: `/questdb_cleanup`
+- Limpeza de quests antigas via função `Database.CleanupOldQuests`
+- Limpeza de histórico antiga via função `Database.CleanupOldHistory`
+- Comando manual (se configurado): `/questdb_cleanup`
 
 ## 🎮 Como Usar
 
@@ -182,15 +205,32 @@ CREATE TABLE IF NOT EXISTS daily_quests (
 2. **Administradores**: Usem os comandos de debug e gerenciamento
 3. **Desenvolvedores**: Adicionem novas missões na pasta `quests/`
 
-## 🔧 Comandos Administrativos
+## 🔧 Comandos
 
-### Banco de Dados
-- `/questdb_status` - Verificar estatísticas do banco de dados
-- `/questdb_cleanup` - Executar limpeza manual dos registros
+### Jogador/Admin
+- `/quest_list` — Lista suas últimas quests e status (ativa/completada)
+
+### Teste de Missão
+- `/quest_test [distância]` — Spawna um faisão morto à sua frente (padrão 3.0m). Restrito via ACE.
+  - Uso: `/quest_test` ou `/quest_test 6.0`
+  - Permissão ACE: `command.quest_test`
 
 ### Auto-Update
-- `/quest_checkupdate` - Verificar atualizações disponíveis
-- `/quest_update` - Obter detalhes da atualização
+- `/quest_checkupdate` — Verificar atualizações disponíveis
+- `/quest_update` — Obter detalhes da atualização
+
+### Reset de Missão
+- `/quest_reset [questId]` — Remove a conclusão de hoje para a missão informada (ou a última missão completada hoje, se não informado) e reabre a missão para refazer.
+
+### Observações sobre ACE
+Adicione no `server.cfg` para liberar o comando de teste para um grupo/usuário específico:
+
+```
+# Exemplo: permitir para admin
+add_ace group.admin command.quest_test allow
+# Opcional: atribuir players ao grupo admin
+add_principal identifier.steam:110000112345678 group.admin
+```
 
 ## 🆕 Adicionando Novas Missões
 
@@ -240,7 +280,7 @@ Ative `Config.DevMode = true` para ver logs detalhados:
 
 - **Desenvolvedor**: FTx3g
 - **Repositório**: https://github.com/FireGames-Developers/quest_diarias
-- **Versão**: 2.0.0
+- **Versão**: 2.1.0
 
 ## 📝 Changelog
 

@@ -1,11 +1,12 @@
 -- ============================================================================
 -- TESTE DE MISSÃO (CLIENTE)
 -- ============================================================================
--- Spawna um faisão à frente do jogador para teste de combate.
+-- Spawna um faisão à frente do jogador. Se "dead" for true,
+-- o faisão será criado já morto no chão para testes de entrega.
 -- ============================================================================
 
 RegisterNetEvent('quest_diarias:testMission:spawnPheasant')
-AddEventHandler('quest_diarias:testMission:spawnPheasant', function(distance)
+AddEventHandler('quest_diarias:testMission:spawnPheasant', function(distance, dead)
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
     local forward = GetEntityForwardVector(ped)
@@ -38,6 +39,21 @@ AddEventHandler('quest_diarias:testMission:spawnPheasant', function(distance)
     -- Opcional: definir como animal
     -- Citizen.InvokeNative(0x77FF8D35EEC6BBC4, created, 1, 0)
 
-    TriggerEvent('vorp:TipBottom', 'Faisão spawnado à sua frente', 3000)
+    if dead then
+        -- Evitar que voe: congelar e matar em seguida, então posicionar no chão.
+        FreezeEntityPosition(created, false)
+        -- Reduz saúde e aplica dano fatal
+        SetEntityHealth(created, 0)
+        -- Alternativamente, usar native para matar o ped
+        -- Citizen.InvokeNative(0x697157CED63F7C8B, created) -- Kill Ped (RDR2 native)
+        -- Garantir que está deitado no chão
+        PlaceEntityOnGroundProperly(created, true)
+        -- Remover qualquer tarefa para evitar animações
+        ClearPedTasksImmediately(created)
+        TriggerEvent('vorp:TipBottom', 'Carcaça de faisão posicionada no chão', 3000)
+    else
+        TriggerEvent('vorp:TipBottom', 'Faisão spawnado à sua frente', 3000)
+    end
+
     SetModelAsNoLongerNeeded(model)
 end)
