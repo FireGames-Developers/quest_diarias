@@ -1,229 +1,235 @@
-# Sistema de Missões Diárias - Quest Diarias
+# Quest Diárias - Sistema de Missões Diárias para VORP
 
-**Desenvolvido por:** FTx3g  
-**Versão:** 2.0.0
+Sistema modular e extensível de missões diárias para servidores RedM usando VORP Core, com sistema de auto-atualização via GitHub.
 
-## Descrição
+## 🚀 Características
 
-Sistema completo de missões diárias para RedM/VORP Core que permite aos jogadores realizar missões uma vez por dia com recompensas configuráveis. O sistema foi completamente reestruturado para melhor organização e manutenibilidade.
+- ✅ Sistema modular e extensível
+- ✅ Controle diário automático de missões
+- ✅ Interface integrada com VORP Menu
+- ✅ Sistema de recompensas configurável
+- ✅ Blips automáticos no mapa
+- ✅ Banco de dados com limpeza automática
+- ✅ Sistema de debug para desenvolvimento
+- ✅ **Auto-atualização via GitHub**
+- ✅ **Backup automático antes de atualizações**
+- ✅ **Comandos administrativos para controle**
 
-## Características
+## 📋 Dependências
 
-- ✅ Sistema de missões dinâmico e modular
-- ✅ Controle diário de missões (uma vez por dia)
-- ✅ Recompensas configuráveis (dinheiro, XP, itens)
-- ✅ Sistema de blips automático
-- ✅ Interface de menu integrada com VORP Menu
-- ✅ Sistema de debug integrado
-- ✅ Limpeza automática do banco de dados (30 dias)
-- ✅ Estrutura modular para fácil manutenção
+- `vorp_core` - Framework principal
+- `vorp_menu` - Sistema de menus
+- `oxmysql` - Conexão com banco de dados
 
-## Dependências
+## 🔧 Instalação
 
-- **vorp_core** - Sistema principal do VORP
-- **vorp_menu** - Sistema de menus
-- **oxmysql** - Sistema de banco de dados
+1. Extraia o recurso para a pasta `resources/[standalone]/`
+2. Adicione `ensure quest_diarias` ao seu `server.cfg`
+3. Reinicie o servidor
 
-## Instalação
+> **Nota:** O sistema criará automaticamente as tabelas necessárias no banco de dados na primeira inicialização.
 
-1. **Baixe e extraia** o recurso na pasta `resources/[standalone]/`
-2. **Adicione** `ensure quest_diarias` no seu `server.cfg`
-3. **Reinicie** o servidor
-
-> **Nota:** Não é mais necessário executar scripts SQL manualmente! O sistema cria automaticamente as tabelas necessárias na primeira inicialização.
-
-## Estrutura de Arquivos
+## 📁 Estrutura de Arquivos
 
 ```
 quest_diarias/
 ├── client/
-│   ├── npc.lua              # Gerenciamento de NPCs
-│   └── quest_client.lua     # Sistema de quests do cliente
+│   └── quest_client.lua      # Gerenciamento client-side das missões
 ├── server/
 │   ├── init.lua             # Inicialização automática do sistema
-│   ├── database.lua         # Gerenciador de banco de dados
-│   ├── npc.lua              # Lógica do servidor para NPCs
-│   └── quest_handler.lua    # Gerenciador de quests do servidor
+│   ├── database.lua         # Gerenciamento automático do banco de dados
+│   ├── updater.lua          # Sistema de auto-atualização via GitHub
+│   └── quest_handler.lua    # Manipulação server-side das missões
 ├── modules/
-│   ├── blips.lua            # Sistema de blips/marcadores
-│   ├── debug.lua            # Sistema de debug
-│   ├── menu.lua             # Interface de menu
-│   ├── npc.lua              # Spawn e controle de NPCs
-│   └── quest_manager.lua    # Gerenciador principal de quests
+│   ├── blips.lua           # Sistema de blips no mapa
+│   ├── menu.lua            # Interface do menu
+│   ├── debug.lua           # Ferramentas de debug
+│   └── quest_manager.lua   # Gerenciador dinâmico de missões
 ├── quests/
-│   └── quest1.lua           # Missão 1 - Caça ao Faisão
-├── sql/
-│   └── create_tables.sql    # Script de criação das tabelas
-├── config.lua               # Configurações principais
-├── fxmanifest.lua          # Manifest do recurso
-└── README.md               # Este arquivo
+│   └── quest1.lua          # Missão exemplo: Caça ao Faisão
+├── config.lua              # Configurações principais
+├── fxmanifest.lua         # Manifesto do recurso
+└── README.md              # Este arquivo
 ```
 
-## Configuração
+## ⚙️ Configuração
 
-### Configuração Principal (config.lua)
-
-```lua
-Config.mission = 1  -- Define qual missão está ativa (1, 2, 3, etc.)
-```
-
-### Configuração de Missões
-
-Cada missão é um arquivo separado na pasta `quests/`. Exemplo de estrutura:
+### Config.lua Principal
 
 ```lua
--- quests/quest1.lua
-local Quest = {}
+Config = {}
+Config.DevMode = true -- Ativar logs de debug
 
-Quest.Config = {
-    id = 1,
-    name = "Caça ao Faisão",
-    description = "Cace um faisão e traga sua carcaça",
-    requiredItem = "carcass_pheasant_perfect",
-    rewards = {
-        money = 25.0,
-        xp = 100,
-        items = {
-            { name = "consumable_herb_ginseng", amount = 2 }
-        }
-    },
-    -- ... outras configurações
+-- Configurações do NPC
+Config.npc = {
+    model = "A_M_M_UniBoatCrew_01",
+    coords = vector4(-1807.52, -374.13, 158.15, 205.71)
 }
 
--- Funções da missão
-function Quest.StartQuest(source) end
-function Quest.CompleteQuest(source) end
-function Quest.CanDoQuest(source, callback) end
-
-return Quest
+-- Configurações de Auto-Update
+Config.AutoUpdate = {
+    enabled = true,                                                    -- Ativar sistema de auto-update
+    repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
+    branch = "main",                                                   -- Branch para verificar
+    checkInterval = 3600000,                                          -- Intervalo de verificação (1 hora)
+    autoDownload = false,                                             -- Download automático (recomendado: false)
+    backupBeforeUpdate = true,                                        -- Criar backup antes da atualização
+    notifyAdmins = true                                               -- Notificar admins sobre atualizações
+}
 ```
 
-## Como Adicionar Novas Missões
+### Configuração de Missões Individuais
 
-1. **Crie um novo arquivo** na pasta `quests/` seguindo o padrão `questX.lua` (onde X é o número da missão)
-
-2. **Copie a estrutura** do `quest1.lua` como base
-
-3. **Configure os parâmetros** da missão:
-   - `id`: Número único da missão
-   - `name`: Nome da missão
-   - `description`: Descrição da missão
-   - `requiredItem`: Item necessário para completar
-   - `rewards`: Recompensas (dinheiro, XP, itens)
-   - `huntingArea`: Área de caça (se aplicável)
-   - `texts`: Textos da missão
-
-4. **Implemente as funções**:
-   - `StartQuest(source)`: Lógica para iniciar a missão
-   - `CompleteQuest(source)`: Lógica para completar a missão
-   - `CanDoQuest(source, callback)`: Verificação se pode fazer a missão
-
-5. **Atualize o config.lua** para definir `Config.mission = X` (número da sua nova missão)
-
-### Exemplo de Nova Missão
+Cada missão em `quests/` deve seguir este padrão:
 
 ```lua
--- quests/quest2.lua
 local Quest = {}
 
-Quest.Config = {
-    id = 2,
-    name = "Coleta de Ervas",
-    description = "Colete 5 ervas medicinais",
-    requiredItem = "herb_ginseng",
-    requiredAmount = 5,
-    rewards = {
-        money = 15.0,
-        xp = 75,
-        items = {
-            { name = "consumable_medicine", amount = 1 }
-        }
-    },
-    texts = {
-        started = "Colete 5 ervas medicinais",
-        completed = "Ervas entregues com sucesso!",
-        alreadyCompleted = "Você já completou esta missão hoje",
-        noItems = "Você não tem as ervas necessárias"
+Quest.id = 1
+Quest.name = "Nome da Missão"
+Quest.description = "Descrição da missão"
+
+Quest.requirements = {
+    item = "item_necessario",
+    amount = 1
+}
+
+Quest.rewards = {
+    money = 50,
+    xp = 100,
+    items = {
+        {name = "item_recompensa", amount = 1}
     }
 }
 
-function Quest.StartQuest(source)
-    TriggerClientEvent('vorp:TipBottom', source, Quest.Config.texts.started, 5000)
-end
-
-function Quest.CompleteQuest(source)
-    -- Implementar lógica de verificação e recompensa
-end
-
-function Quest.CanDoQuest(source, callback)
-    -- Implementar verificação diária
-end
+-- Outras configurações...
 
 return Quest
 ```
 
-## Sistema de Banco de Dados
+## 🔄 Sistema de Auto-Atualização
 
-O sistema utiliza uma tabela `daily_quests` para controlar as missões completadas:
+O sistema inclui verificação automática de atualizações via GitHub API:
+
+### Comandos Administrativos
+
+- `/quest_checkupdate` - Verificar manualmente por atualizações
+- `/quest_update` - Obter detalhes da atualização disponível
+
+### Configurações de Auto-Update
+
+- **enabled**: Ativar/desativar o sistema
+- **repository**: URL do repositório GitHub
+- **checkInterval**: Intervalo entre verificações (em ms)
+- **autoDownload**: Download automático (desabilitado por segurança)
+- **backupBeforeUpdate**: Criar backup antes de atualizar
+- **notifyAdmins**: Notificar administradores sobre atualizações
+
+### Funcionamento
+
+1. **Verificação Automática**: O sistema verifica por atualizações no intervalo configurado
+2. **Notificação**: Administradores são notificados quando há atualizações disponíveis
+3. **Backup**: Sistema cria backup automático antes de qualquer atualização
+4. **Segurança**: Download automático desabilitado por questões de segurança
+
+## 📊 Banco de Dados
+
+O sistema gerencia automaticamente uma tabela `daily_quests`:
 
 ```sql
-CREATE TABLE IF NOT EXISTS `daily_quests` (
-    `id` int(11) NOT NULL AUTO_INCREMENT,
-    `identifier` varchar(50) NOT NULL,
-    `quest_id` int(11) NOT NULL,
-    `completed_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    KEY `idx_identifier_quest` (`identifier`, `quest_id`),
-    KEY `idx_completed_at` (`completed_at`)
+CREATE TABLE IF NOT EXISTS daily_quests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    identifier VARCHAR(50) NOT NULL,
+    quest_id INT NOT NULL,
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 ### Limpeza Automática
 
-O sistema inclui um evento automático que limpa registros antigos a cada 24 horas:
+- Registros são automaticamente removidos após 30 dias
+- Event automático executa diariamente à meia-noite
+- Comando manual: `/questdb_cleanup`
 
-```sql
-CREATE EVENT IF NOT EXISTS `cleanup_daily_quests`
-ON SCHEDULE EVERY 1 DAY
-DO DELETE FROM `daily_quests` WHERE `completed_at` < DATE_SUB(NOW(), INTERVAL 30 DAY);
+## 🎮 Como Usar
+
+1. **Jogadores**: Interajam com o NPC para acessar o menu de missões
+2. **Administradores**: Usem os comandos de debug e gerenciamento
+3. **Desenvolvedores**: Adicionem novas missões na pasta `quests/`
+
+## 🔧 Comandos Administrativos
+
+### Banco de Dados
+- `/questdb_status` - Verificar estatísticas do banco de dados
+- `/questdb_cleanup` - Executar limpeza manual dos registros
+
+### Auto-Update
+- `/quest_checkupdate` - Verificar atualizações disponíveis
+- `/quest_update` - Obter detalhes da atualização
+
+## 🆕 Adicionando Novas Missões
+
+1. Crie um novo arquivo em `quests/quest[numero].lua`
+2. Siga o padrão da `quest1.lua`
+3. Configure o `Config.mission` para a nova missão
+4. Reinicie o recurso
+
+Exemplo de nova missão:
+
+```lua
+local Quest = {}
+
+Quest.id = 2
+Quest.name = "Coleta de Ervas"
+Quest.description = "Colete 5 ervas medicinais"
+
+Quest.requirements = {
+    item = "herb_medicine",
+    amount = 5
+}
+
+Quest.rewards = {
+    money = 75,
+    xp = 150,
+    items = {
+        {name = "health_potion", amount = 2}
+    }
+}
+
+-- Implementar funções necessárias...
+
+return Quest
 ```
 
-## Comandos Administrativos
+## 🐛 Debug
 
-O sistema inclui comandos úteis para administradores:
+Ative `Config.DevMode = true` para ver logs detalhados:
 
-- `/questdb_status` - Exibe estatísticas do banco de dados (total de registros, jogadores únicos, etc.)
-- `/questdb_cleanup` - Executa limpeza manual de registros antigos
+- Carregamento de missões
+- Verificações de itens
+- Operações de banco de dados
+- Verificações de atualização
+- Status do sistema
 
-> **Nota:** Estes comandos só funcionam para usuários com grupo 'admin'
+## 📞 Suporte
 
-## Sistema de Inicialização Automática
+- **Desenvolvedor**: FTx3g
+- **Repositório**: https://github.com/FireGames-Developers/quest_diarias
+- **Versão**: 2.0.0
 
-O sistema possui inicialização automática que:
-
-- ✅ Verifica se as tabelas existem na inicialização
-- ✅ Cria automaticamente as tabelas se não existirem  
-- ✅ Configura eventos de limpeza automática
-- ✅ Executa verificações de saúde do sistema
-- ✅ Exibe logs detalhados quando `Config.DevMode = true`
-
-## Comandos de Debug
-
-Quando `Config.DevMode = true`, o sistema exibe informações detalhadas no console para facilitar o debug.
-
-## Suporte
-
-Para suporte ou dúvidas sobre o sistema, entre em contato com **FTx3g**.
-
-## Changelog
+## 📝 Changelog
 
 ### v2.0.0
-- Reestruturação completa do sistema
-- Sistema modular de missões
-- Controle diário de missões
-- Sistema de recompensas aprimorado
-- Limpeza automática do banco de dados
-- Melhor organização de arquivos
+- ✅ Reestruturação completa do código
+- ✅ Sistema modular implementado
+- ✅ Inicialização automática do banco de dados
+- ✅ Sistema de auto-atualização via GitHub
+- ✅ Comandos administrativos expandidos
+- ✅ Sistema de backup automático
+- ✅ Melhorias na documentação
 
 ### v1.0.0
-- Versão inicial do sistema
+- ✅ Versão inicial do sistema
+- ✅ Missão básica de caça ao faisão
+- ✅ Sistema de recompensas
+- ✅ Integração com VORP

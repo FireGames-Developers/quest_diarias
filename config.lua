@@ -3,6 +3,17 @@ Config              = {}
 -- DEBUG
 Config.DevMode      = true
 
+-- AUTO UPDATE SYSTEM
+Config.AutoUpdate = {
+    enabled = true,                                                    -- Habilitar sistema de auto-update
+    repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
+    branch = "main",                                                   -- Branch para verificar updates
+    checkInterval = 3600000,                                          -- Intervalo de verificação em ms (1 hora)
+    autoDownload = false,                                             -- Download automático (recomendado: false)
+    backupBeforeUpdate = true,                                        -- Criar backup antes de atualizar
+    notifyAdmins = true                                               -- Notificar admins sobre updates
+}
+
 
 -- Color BLIP
 --0	Branco (default)	Padrão

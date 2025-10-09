@@ -1,66 +1,47 @@
--- Initialization Script - Sistema de Inicialização do Servidor
+-- Inicialização do Sistema de Missões Diárias
 -- Desenvolvido por FTx3g
 
--- Aguardar o VORP Core estar pronto
-local VorpCore = exports.vorp_core:GetCore()
-
--- Carregar módulos necessários
-local Database = require('server.database')
-
--- Função de inicialização principal
-local function Initialize()
-    if Config.DevMode then
-        print('========================================')
-        print('    Quest Diarias - Sistema v2.0.0')
-        print('    Desenvolvido por: FTx3g')
-        print('========================================')
-        print('[Init] Iniciando sistema de missões diárias...')
+-- Aguardar VORP Core estar pronto
+Citizen.CreateThread(function()
+    while not exports.vorp_core:GetCore() do
+        Citizen.Wait(100)
     end
     
-    -- Inicializar o banco de dados
+    if Config.DevMode then
+        print('[Quest Diarias] VORP Core carregado, inicializando sistema...')
+    end
+    
+    -- Carregar módulo de database
+    local Database = require('server.database')
+    
+    -- Carregar módulo de auto-update
+    local Updater = require('server.updater')
+    
+    -- Inicializar database
     Database.Initialize()
     
+    -- Inicializar sistema de auto-update
+    Updater.Initialize()
+    
     if Config.DevMode then
-        print('[Init] Sistema inicializado com sucesso!')
-        print('[Init] Comandos disponíveis para admins:')
-        print('[Init] • /questdb_status - Ver estatísticas do banco')
-        print('[Init] • /questdb_cleanup - Limpeza manual do banco')
-        print('========================================')
+        print('[Quest Diarias] Sistema inicializado com sucesso!')
+        print('[Quest Diarias] Comandos administrativos disponíveis:')
+        print('[Quest Diarias] - /questdb_status (verificar status do banco)')
+        print('[Quest Diarias] - /questdb_cleanup (limpeza manual)')
+        print('[Quest Diarias] - /quest_checkupdate (verificar atualizações)')
+        print('[Quest Diarias] - /quest_update (detalhes da atualização)')
     end
-end
-
--- Event quando o recurso é iniciado
-AddEventHandler('onResourceStart', function(resourceName)
-    if GetCurrentResourceName() == resourceName then
-        -- Aguardar um pouco para garantir que todas as dependências estão carregadas
-        Citizen.SetTimeout(2000, function()
-            Initialize()
-        end)
-    end
-end)
-
--- Event quando o recurso é parado
-AddEventHandler('onResourceStop', function(resourceName)
-    if GetCurrentResourceName() == resourceName then
-        if Config.DevMode then
-            print('[Init] Sistema de missões diárias finalizado')
+    
+    -- Health check a cada 30 minutos
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(1800000) -- 30 minutos
+            
+            if Config.DevMode then
+                Database.GetStats(function(stats)
+                    print(('[Quest Diarias] Health Check - Total de registros: %d'):format(stats.totalRecords))
+                end)
+            end
         end
-    end
-end)
-
--- Verificação de saúde do sistema (executada a cada 30 minutos)
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(1800000) -- 30 minutos
-        
-        if Config.DevMode then
-            Database.GetStats(function(stats)
-                if stats then
-                    print(('[Health Check] Sistema funcionando. Registros ativos: %d'):format(stats.total_records))
-                else
-                    print('[Health Check] Aviso: Não foi possível obter estatísticas do banco')
-                end
-            end)
-        end
-    end
+    end)
 end)
