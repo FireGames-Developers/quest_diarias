@@ -7,32 +7,35 @@ QuestManager.LoadedQuests = {}
 -- Função para carregar uma quest específica
 function QuestManager.LoadQuest(questId)
     local questFile = ('quests/quest%d.lua'):format(questId)
-    local questPath = GetResourcePath(GetCurrentResourceName()) .. '/' .. questFile
     
-    -- Verificar se o arquivo existe
-    local file = io.open(questPath, "r")
-    if not file then
+    -- Ler o conteúdo do arquivo de recurso com segurança
+    local content = LoadResourceFile(GetCurrentResourceName(), questFile)
+    if not content or content == '' then
         if Config.DevMode then
-            print(('[Quest Manager] Arquivo de quest não encontrado: %s'):format(questFile))
+            print(('[Quest Manager] Arquivo de missão não encontrado: %s'):format(questFile))
         end
         return nil
     end
-    file:close()
-    
-    -- Carregar a quest
-    local success, quest = pcall(function()
-        return dofile(questPath)
-    end)
-    
-    if success and quest then
+
+    -- Compilar e executar o conteúdo para obter a tabela da missão
+    local chunk, cerr = load(content, questFile)
+    if not chunk then
+        if Config.DevMode then
+            print(('[Quest Manager] Erro ao compilar missão %d: %s'):format(questId, tostring(cerr)))
+        end
+        return nil
+    end
+
+    local ok, quest = pcall(chunk)
+    if ok and quest then
         QuestManager.LoadedQuests[questId] = quest
         if Config.DevMode then
-            print(('[Quest Manager] Quest %d carregada com sucesso'):format(questId))
+            print(('[Quest Manager] Missão %d carregada com sucesso'):format(questId))
         end
         return quest
     else
         if Config.DevMode then
-            print(('[Quest Manager] Erro ao carregar quest %d: %s'):format(questId, tostring(quest)))
+            print(('[Quest Manager] Erro ao carregar missão %d: %s'):format(questId, tostring(quest)))
         end
         return nil
     end
@@ -51,7 +54,7 @@ function QuestManager.StartQuest(source, questId)
     local quest = QuestManager.GetQuest(questId)
     if not quest then
         if Config.DevMode then
-            print(('[Quest Manager] Quest %d não encontrada'):format(questId))
+            print(('[Quest Manager] Missão %d não encontrada'):format(questId))
         end
         return false
     end
@@ -74,7 +77,7 @@ function QuestManager.CompleteQuest(source, questId)
     local quest = QuestManager.GetQuest(questId)
     if not quest then
         if Config.DevMode then
-            print(('[Quest Manager] Quest %d não encontrada'):format(questId))
+            print(('[Quest Manager] Missão %d não encontrada'):format(questId))
         end
         return false
     end

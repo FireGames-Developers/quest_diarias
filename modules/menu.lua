@@ -1,10 +1,10 @@
-local inmenu = false
-local prompts = GetRandomIntInRange(0, 0xffffff)
-local MenuData = exports.vorp_menu:GetMenuData()
-local openmenu = nil
+inmenu = false
+prompts = GetRandomIntInRange(0, 0xffffff)
+MenuData = exports.vorp_menu:GetMenuData()
+openmenu = nil
 
 ---------------- PROMPT ---------------------
-local function PromptSetUp()
+function PromptSetUp()
     local ok, err = pcall(function()
         local str = Config.text.openmenu
         openmenu = PromptRegisterBegin()
@@ -22,7 +22,7 @@ local function PromptSetUp()
 end
 
 ----------------- MENU ----------------------
-local function CloseStore()
+function CloseStore()
     MenuData.CloseAll()
     ClearPedTasks(PlayerPedId())
     DisplayRadar(true)
@@ -44,12 +44,12 @@ function OpenStore()
         },
         function(data, menu)
             if data.current.value == 'getQuest' then
-                DebugPrint("Opção Pegar missão selecionada")
+                DebugPrint(("Opção Ajudar %s selecionada"):format(Config.NpcName or 'NPC'))
                 -- Iniciar a missão configurada
                 TriggerServerEvent('quest_diarias:startQuest', Config.mission)
                 CloseStore()
             elseif data.current.value == 'deliveryQuest' then
-                DebugPrint("Opção Entregar missão selecionada")
+                DebugPrint("Opção Entregar Itens selecionada")
                 -- Completar a missão configurada
                 TriggerServerEvent('quest_diarias:completeQuest', Config.mission)
                 CloseStore()

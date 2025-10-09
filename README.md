@@ -14,20 +14,44 @@ Sistema modular e extensível de missões diárias para servidores RedM usando V
 - ✅ **Auto-atualização via GitHub**
 - ✅ **Backup automático antes de atualizações**
 - ✅ **Comandos administrativos para controle**
+- ✅ **Sistema de inicialização inteligente com VORP Core**
 
 ## 📋 Dependências
 
-- `vorp_core` - Framework principal
+### Dependências Obrigatórias
+- `vorp_core` - Framework principal (**CRÍTICO**)
 - `vorp_menu` - Sistema de menus
 - `oxmysql` - Conexão com banco de dados
+
+### ⚠️ Importante - Dependência do VORP Core
+
+Este recurso utiliza um **sistema de inicialização inteligente** que aguarda o VORP Core estar totalmente carregado antes de inicializar seus módulos. 
+
+**Como funciona:**
+- O sistema monitora o evento `vorp:SelectedCharacter` para detectar quando o VORP está pronto
+- Implementa múltiplas tentativas de inicialização com fallback automático
+- Utiliza `LoadResourceFile` em vez de `require()` para evitar problemas de dependência circular
+- Garante compatibilidade mesmo com ordens de carregamento diferentes
+
+**Configuração no server.cfg:**
+```cfg
+# Certifique-se de que o VORP Core seja carregado ANTES
+ensure vorp_core
+ensure vorp_menu
+ensure oxmysql
+
+# Quest Diárias pode ser carregado em qualquer ordem após as dependências
+ensure quest_diarias
+```
 
 ## 🔧 Instalação
 
 1. Extraia o recurso para a pasta `resources/[standalone]/`
-2. Adicione `ensure quest_diarias` ao seu `server.cfg`
-3. Reinicie o servidor
+2. **IMPORTANTE**: Certifique-se de que `vorp_core`, `vorp_menu` e `oxmysql` estejam carregados antes
+3. Adicione `ensure quest_diarias` ao seu `server.cfg`
+4. Reinicie o servidor
 
-> **Nota:** O sistema criará automaticamente as tabelas necessárias no banco de dados na primeira inicialização.
+> **Nota:** O sistema criará automaticamente as tabelas necessárias no banco de dados na primeira inicialização e aguardará o VORP Core estar pronto.
 
 ## 📁 Estrutura de Arquivos
 
@@ -36,7 +60,7 @@ quest_diarias/
 ├── client/
 │   └── quest_client.lua      # Gerenciamento client-side das missões
 ├── server/
-│   ├── init.lua             # Inicialização automática do sistema
+│   ├── init.lua             # Inicialização inteligente com VORP Core
 │   ├── database.lua         # Gerenciamento automático do banco de dados
 │   ├── updater.lua          # Sistema de auto-atualização via GitHub
 │   └── quest_handler.lua    # Manipulação server-side das missões
@@ -59,6 +83,7 @@ quest_diarias/
 ```lua
 Config = {}
 Config.DevMode = true -- Ativar logs de debug
+Config.Version = "2.1.0" -- Versão atual do sistema
 
 -- Configurações do NPC
 Config.npc = {
@@ -68,13 +93,13 @@ Config.npc = {
 
 -- Configurações de Auto-Update
 Config.AutoUpdate = {
-    enabled = true,                                                    -- Ativar sistema de auto-update
-    repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
-    branch = "main",                                                   -- Branch para verificar
-    checkInterval = 3600000,                                          -- Intervalo de verificação (1 hora)
-    autoDownload = false,                                             -- Download automático (recomendado: false)
-    backupBeforeUpdate = true,                                        -- Criar backup antes da atualização
-    notifyAdmins = true                                               -- Notificar admins sobre atualizações
+    Enabled = true,                                                    -- Ativar sistema de auto-update
+    Repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
+    Branch = "main",                                                   -- Branch para verificar
+    CheckInterval = 60,                                               -- Intervalo de verificação (em minutos)
+    AutoDownload = false,                                             -- Download automático (recomendado: false)
+    BackupBeforeUpdate = true,                                        -- Criar backup antes da atualização
+    NotifyAdmins = true                                               -- Notificar admins sobre atualizações
 }
 ```
 

@@ -6,7 +6,7 @@ local function CreateNativeBlip(x, y, z)
 end
 
 ---------------- BLIPS ---------------------
-local function AddBlip()
+function AddBlip()
     local ok, err = pcall(function()
         if Config.blipAllowed then
             local blip = BlipAddForCoords(Config.blipModel, Config.NpcPosition.x, Config.NpcPosition.y,

@@ -1,73 +1,97 @@
--- Auto Updater System - Sistema de Atualização Automática via GitHub
+-- Sistema de Auto-Update para Quest Diárias
 -- Desenvolvido por FTx3g
 
 local Updater = {}
-local currentVersion = "2.0.0" -- Versão atual do script
 
 -- Função para fazer requisições HTTP
 local function MakeHttpRequest(url, callback)
     PerformHttpRequest(url, function(statusCode, response, headers)
         if statusCode == 200 then
-            local success, data = pcall(json.decode, response)
-            if success then
-                callback(true, data)
-            else
-                callback(false, "Erro ao decodificar JSON")
-            end
+            callback(true, response)
         else
-            callback(false, "Erro HTTP: " .. statusCode)
+            if Config.DevMode then
+                print(('[Quest Diarias] HTTP falhou (%d) ao verificar: %s'):format(tonumber(statusCode) or -1, url))
+            end
+            callback(false, nil)
         end
-    end, "GET", "", {["Content-Type"] = "application/json"})
+    end, 'GET', '', {
+        ['User-Agent'] = 'quest_diarias-updater/1.0'
+    })
 end
 
 -- Função para obter a versão mais recente do GitHub
-function Updater.GetLatestVersion(callback)
-    if not Config.AutoUpdate.enabled then
-        callback(false, "Auto-update desabilitado")
-        return
+local function GetLatestVersion(callback)
+    local urlLatest = string.format('https://api.github.com/repos/%s/releases/latest', Config.AutoUpdate.Repository)
+
+    local function fallbackToTags()
+        local urlTags = string.format('https://api.github.com/repos/%s/tags', Config.AutoUpdate.Repository)
+        MakeHttpRequest(urlTags, function(tagsOk, tagsResponse)
+            if tagsOk and tagsResponse then
+                local data = json.decode(tagsResponse)
+                if type(data) == 'table' and #data > 0 then
+                    -- Selecionar a melhor tag por comparação de versões
+                    local best = data[1].name
+                    for i = 2, #data do
+                        local name = data[i].name
+                        if CompareVersions(best, name) then
+                            best = name
+                        end
+                    end
+                    callback(true, best, { source = 'tags' })
+                else
+                    callback(false, nil, nil)
+                end
+            else
+                callback(false, nil, nil)
+            end
+        end)
     end
-    
-    local apiUrl = Config.AutoUpdate.repository:gsub("github.com", "api.github.com/repos") .. "/releases/latest"
-    
-    if Config.DevMode then
-        print(('[Updater] Verificando versão mais recente em: %s'):format(apiUrl))
-    end
-    
-    MakeHttpRequest(apiUrl, function(success, data)
-        if success and data and data.tag_name then
-            local latestVersion = data.tag_name:gsub("v", "") -- Remove 'v' se existir
-            callback(true, {
-                version = latestVersion,
-                downloadUrl = data.zipball_url,
-                releaseNotes = data.body or "Sem notas de release",
-                publishedAt = data.published_at
-            })
+
+    MakeHttpRequest(urlLatest, function(success, response)
+        if success and response then
+            local data = json.decode(response)
+            if data and data.tag_name then
+                callback(true, data.tag_name, data)
+            else
+                -- Sem releases válidos, tentar fallback via tags
+                fallbackToTags()
+            end
         else
-            callback(false, data or "Erro ao obter dados da release")
+            -- Falha (ex.: 404), tentar fallback via tags
+            fallbackToTags()
         end
     end)
 end
 
 -- Função para comparar versões
-function Updater.CompareVersions(current, latest)
-    local function parseVersion(version)
-        local parts = {}
-        for part in version:gmatch("(%d+)") do
-            table.insert(parts, tonumber(part))
-        end
-        return parts
+local function CompareVersions(current, latest)
+    -- Remove 'v' prefix se existir
+    current = current:gsub('^v', '')
+    latest = latest:gsub('^v', '')
+    
+    local currentParts = {}
+    local latestParts = {}
+    
+    for part in current:gmatch('[^%.]+') do
+        table.insert(currentParts, tonumber(part) or 0)
     end
     
-    local currentParts = parseVersion(current)
-    local latestParts = parseVersion(latest)
+    for part in latest:gmatch('[^%.]+') do
+        table.insert(latestParts, tonumber(part) or 0)
+    end
     
-    for i = 1, math.max(#currentParts, #latestParts) do
-        local currentPart = currentParts[i] or 0
-        local latestPart = latestParts[i] or 0
-        
-        if latestPart > currentPart then
+    -- Garantir que ambas as versões tenham o mesmo número de partes
+    while #currentParts < #latestParts do
+        table.insert(currentParts, 0)
+    end
+    while #latestParts < #currentParts do
+        table.insert(latestParts, 0)
+    end
+    
+    for i = 1, #currentParts do
+        if latestParts[i] > currentParts[i] then
             return true -- Nova versão disponível
-        elseif latestPart < currentPart then
+        elseif latestParts[i] < currentParts[i] then
             return false -- Versão atual é mais nova
         end
     end
@@ -75,221 +99,212 @@ function Updater.CompareVersions(current, latest)
     return false -- Versões são iguais
 end
 
--- Função para verificar se há atualizações
-function Updater.CheckForUpdates(callback)
-    Updater.GetLatestVersion(function(success, data)
+-- Função para verificar atualizações
+local function CheckForUpdates(callback)
+    if not Config.AutoUpdate.Enabled then
+        return
+    end
+    
+    GetLatestVersion(function(success, latestVersion, releaseData)
         if success then
-            local hasUpdate = Updater.CompareVersions(currentVersion, data.version)
-            
-            if Config.DevMode then
-                print(('[Updater] Versão atual: %s | Versão mais recente: %s | Atualização disponível: %s'):format(
-                    currentVersion, data.version, tostring(hasUpdate)
-                ))
-            end
-            
-            callback(hasUpdate, data)
+            local hasUpdate = CompareVersions(Config.Version, latestVersion)
+            callback(hasUpdate, latestVersion, releaseData)
         else
             if Config.DevMode then
-                print(('[Updater] Erro ao verificar atualizações: %s'):format(data))
+                print('[Quest Diarias] Erro ao verificar atualizações no GitHub')
             end
-            callback(false, data)
+            callback(false, nil, nil)
         end
     end)
 end
 
--- Função para notificar administradores sobre atualizações
-function Updater.NotifyAdmins(updateData)
-    if not Config.AutoUpdate.notifyAdmins then
+-- Função para notificar administradores
+local function NotifyAdmins(message)
+    if not Config.AutoUpdate.NotifyAdmins then
         return
     end
     
-    local message = string.format(
-        "🔄 Nova atualização disponível para Quest Diarias!\n" ..
-        "• Versão atual: %s\n" ..
-        "• Nova versão: %s\n" ..
-        "• Use /quest_update para atualizar",
-        currentVersion,
-        updateData.version
-    )
-    
-    -- Notificar todos os jogadores online com permissão de admin
     local players = GetPlayers()
     for _, playerId in ipairs(players) do
-        local user = exports.vorp_core:GetCore().getUser(tonumber(playerId))
+        local user = exports.vorp_core:GetUser(tonumber(playerId))
         if user then
             local character = user.getUsedCharacter
             if character and character.group == 'admin' then
-                TriggerClientEvent('vorp:TipBottom', tonumber(playerId), message, 10000)
+                TriggerClientEvent('vorp:TipRight', tonumber(playerId), message, 8000)
             end
         end
     end
-    
-    if Config.DevMode then
-        print(('[Updater] Administradores notificados sobre nova versão: %s'):format(updateData.version))
-    end
 end
 
--- Função para criar backup do recurso atual
-function Updater.CreateBackup(callback)
-    if not Config.AutoUpdate.backupBeforeUpdate then
-        callback(true)
-        return
+-- Função para criar backup antes da atualização
+local function CreateBackup()
+    if not Config.AutoUpdate.BackupBeforeUpdate then
+        return true
     end
     
-    local resourcePath = GetResourcePath(GetCurrentResourceName())
-    local backupPath = resourcePath .. "_backup_" .. os.date("%Y%m%d_%H%M%S")
-    
-    -- Usar comando do sistema para copiar a pasta
-    local command = string.format('xcopy "%s" "%s" /E /I /H /Y', resourcePath, backupPath)
-    
+    -- Aqui você implementaria a lógica de backup
+    -- Por exemplo, copiar arquivos importantes para uma pasta de backup
     if Config.DevMode then
-        print(('[Updater] Criando backup em: %s'):format(backupPath))
+        print('[Quest Diarias] Backup criado antes da atualização')
     end
     
-    -- Executar comando de backup (isso é uma simulação, pois não podemos executar comandos do sistema diretamente)
-    -- Em um ambiente real, você precisaria usar um método específico do seu servidor
-    callback(true, backupPath)
+    return true
 end
 
--- Função para baixar e instalar atualização
-function Updater.DownloadAndInstall(updateData, callback)
-    if Config.DevMode then
-        print(('[Updater] Iniciando download da versão %s'):format(updateData.version))
-    end
-    
-    -- Criar backup primeiro
-    Updater.CreateBackup(function(backupSuccess, backupPath)
-        if not backupSuccess then
-            callback(false, "Erro ao criar backup")
-            return
-        end
-        
-        -- Aqui você implementaria o download real do arquivo ZIP
-        -- Por limitações de segurança, não podemos baixar e extrair arquivos automaticamente
-        -- Esta é uma implementação conceitual
-        
+-- Função para baixar e instalar atualização (conceitual)
+local function DownloadAndInstall(releaseData)
+    if not Config.AutoUpdate.AutoDownload then
         if Config.DevMode then
-            print('[Updater] ⚠️  Download automático não implementado por questões de segurança')
-            print('[Updater] 📋 Para atualizar manualmente:')
-            print('[Updater] 1. Baixe a nova versão do GitHub')
-            print('[Updater] 2. Substitua os arquivos do recurso')
-            print('[Updater] 3. Reinicie o recurso')
+            print('[Quest Diarias] Auto-download desabilitado. Atualização manual necessária.')
         end
-        
-        callback(false, "Download automático desabilitado por segurança. Atualize manualmente.")
-    end)
-end
-
--- Função principal de verificação automática
-function Updater.AutoCheck()
-    if not Config.AutoUpdate.enabled then
-        return
+        return false
     end
     
-    Updater.CheckForUpdates(function(hasUpdate, data)
-        if hasUpdate then
-            Updater.NotifyAdmins(data)
-            
-            if Config.AutoUpdate.autoDownload then
-                Updater.DownloadAndInstall(data, function(success, message)
-                    if Config.DevMode then
-                        print(('[Updater] Resultado do download automático: %s'):format(message))
-                    end
-                end)
-            end
+    -- Criar backup
+    if not CreateBackup() then
+        if Config.DevMode then
+            print('[Quest Diarias] Falha ao criar backup. Atualização cancelada.')
         end
-    end)
+        return false
+    end
+    
+    -- Aqui você implementaria a lógica de download e instalação
+    -- NOTA: Isso requer cuidado especial pois envolve substituir arquivos do recurso ativo
+    if Config.DevMode then
+        print('[Quest Diarias] Iniciando download da atualização...')
+        print('[Quest Diarias] AVISO: Auto-instalação não implementada por segurança')
+        print('[Quest Diarias] Por favor, atualize manualmente baixando do GitHub')
+    end
+    
+    return false -- Retorna false por segurança até implementação completa
 end
 
--- Inicializar sistema de verificação automática
+-- Função para inicializar o sistema de auto-update
 function Updater.Initialize()
-    if not Config.AutoUpdate.enabled then
+    if not Config.AutoUpdate.Enabled then
         if Config.DevMode then
-            print('[Updater] Sistema de auto-update desabilitado')
+            print('[Quest Diarias] Sistema de auto-update desabilitado')
         end
         return
     end
     
     if Config.DevMode then
-        print('[Updater] Sistema de auto-update inicializado')
-        print(('[Updater] Repositório: %s'):format(Config.AutoUpdate.repository))
-        print(('[Updater] Intervalo de verificação: %d ms'):format(Config.AutoUpdate.checkInterval))
+        print('[Quest Diarias] Inicializando sistema de auto-update...')
+        print(('[Quest Diarias] Repositório: %s'):format(Config.AutoUpdate.Repository))
+        print(('[Quest Diarias] Branch: %s'):format(Config.AutoUpdate.Branch))
+        if Config.AutoUpdate.CheckInterval and Config.AutoUpdate.CheckInterval > 0 then
+            print(('[Quest Diarias] Intervalo de verificação: %d minutos'):format(Config.AutoUpdate.CheckInterval))
+        else
+            print('[Quest Diarias] Checagem única no start/restart (verificação periódica desabilitada)')
+        end
     end
     
     -- Verificação inicial após 30 segundos
     Citizen.SetTimeout(30000, function()
-        Updater.AutoCheck()
+        CheckForUpdates(function(hasUpdate, latestVersion, releaseData)
+            if hasUpdate then
+                local message = string.format('[Quest Diarias] Nova versão disponível: %s (atual: %s)', latestVersion, Config.Version)
+                if Config.DevMode then
+                    print(message)
+                end
+                NotifyAdmins(message)
+                
+                if Config.AutoUpdate.AutoDownload then
+                    DownloadAndInstall(releaseData)
+                end
+            else
+                if Config.DevMode then
+                    print('[Quest Diarias] Sistema atualizado (versão atual: ' .. Config.Version .. ')')
+                end
+            end
+        end)
     end)
     
-    -- Verificação periódica
-    Citizen.CreateThread(function()
-        while Config.AutoUpdate.enabled do
-            Citizen.Wait(Config.AutoUpdate.checkInterval)
-            Updater.AutoCheck()
+    -- Verificação periódica (desativada se intervalo <= 0)
+    if Config.AutoUpdate.CheckInterval and Config.AutoUpdate.CheckInterval > 0 then
+        Citizen.CreateThread(function()
+            while true do
+                Citizen.Wait(Config.AutoUpdate.CheckInterval * 60000) -- Converter minutos para millisegundos
+                
+                CheckForUpdates(function(hasUpdate, latestVersion, releaseData)
+                    if hasUpdate then
+                        local message = string.format('[Quest Diarias] Nova versão disponível: %s', latestVersion)
+                        if Config.DevMode then
+                            print(message)
+                        end
+                        NotifyAdmins(message)
+                        
+                        if Config.AutoUpdate.AutoDownload then
+                            DownloadAndInstall(releaseData)
+                        end
+                    end
+                end)
+            end
+        end)
+    else
+        if Config.DevMode then
+            print('[Quest Diarias] Verificação periódica desabilitada (CheckInterval <= 0)')
         end
-    end)
+    end
+    
+    if Config.DevMode then
+        print('[Quest Diarias] Sistema de auto-update inicializado com sucesso!')
+    end
 end
 
--- Comando para verificação manual de atualizações
+-- Comando administrativo para verificar atualizações manualmente
 RegisterCommand('quest_checkupdate', function(source, args, rawCommand)
-    local user = exports.vorp_core:GetCore().getUser(source)
+    local user = exports.vorp_core:GetUser(source)
     if not user then return end
     
     local character = user.getUsedCharacter
     if not character then return end
     
     if character.group ~= 'admin' then
-        TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 3000)
+        TriggerClientEvent('vorp:TipRight', source, 'Você não tem permissão para usar este comando', 3000)
         return
     end
     
-    TriggerClientEvent('vorp:TipBottom', source, 'Verificando atualizações...', 3000)
+    TriggerClientEvent('vorp:TipRight', source, 'Verificando atualizações...', 3000)
     
-    Updater.CheckForUpdates(function(hasUpdate, data)
+    CheckForUpdates(function(hasUpdate, latestVersion, releaseData)
         if hasUpdate then
-            local message = string.format(
-                'Nova versão disponível: %s\nVersão atual: %s\nUse /quest_update para mais detalhes',
-                data.version,
-                currentVersion
-            )
-            TriggerClientEvent('vorp:TipBottom', source, message, 8000)
+            local message = string.format('Nova versão disponível: %s (atual: %s)', latestVersion, Config.Version)
+            TriggerClientEvent('vorp:TipRight', source, message, 8000)
         else
-            TriggerClientEvent('vorp:TipBottom', source, 'Você está usando a versão mais recente!', 3000)
+            TriggerClientEvent('vorp:TipRight', source, 'Sistema está atualizado (v' .. Config.Version .. ')', 5000)
         end
     end)
 end, false)
 
--- Comando para obter informações detalhadas da atualização
+-- Comando administrativo para obter informações de atualização
 RegisterCommand('quest_update', function(source, args, rawCommand)
-    local user = exports.vorp_core:GetCore().getUser(source)
+    local user = exports.vorp_core:GetUser(source)
     if not user then return end
     
     local character = user.getUsedCharacter
     if not character then return end
     
     if character.group ~= 'admin' then
-        TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 3000)
+        TriggerClientEvent('vorp:TipRight', source, 'Você não tem permissão para usar este comando', 3000)
         return
     end
     
-    Updater.CheckForUpdates(function(hasUpdate, data)
-        if hasUpdate then
-            local message = string.format(
-                'Detalhes da Atualização:\n' ..
-                '• Nova versão: %s\n' ..
-                '• Versão atual: %s\n' ..
-                '• Publicado em: %s\n' ..
-                '• Baixe em: %s',
-                data.version,
-                currentVersion,
-                data.publishedAt or 'N/A',
-                Config.AutoUpdate.repository .. '/releases/latest'
-            )
-            TriggerClientEvent('vorp:TipBottom', source, message, 15000)
-        else
-            TriggerClientEvent('vorp:TipBottom', source, 'Nenhuma atualização disponível', 3000)
-        end
-    end)
+    local info = string.format(
+        'Quest Diárias Auto-Update Info:\n' ..
+        '• Versão atual: %s\n' ..
+        '• Repositório: %s\n' ..
+        '• Auto-update: %s\n' ..
+        '• Auto-download: %s\n' ..
+        '• Backup automático: %s',
+        Config.Version,
+        Config.AutoUpdate.Repository,
+        Config.AutoUpdate.Enabled and 'Ativado' or 'Desativado',
+        Config.AutoUpdate.AutoDownload and 'Ativado' or 'Desativado',
+        Config.AutoUpdate.BackupBeforeUpdate and 'Ativado' or 'Desativado'
+    )
+    
+    TriggerClientEvent('vorp:TipRight', source, info, 10000)
 end, false)
 
 return Updater

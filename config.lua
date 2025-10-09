@@ -2,16 +2,17 @@ Config              = {}
 
 -- DEBUG
 Config.DevMode      = true
+Config.Version      = "2.1.0"
 
 -- AUTO UPDATE SYSTEM
 Config.AutoUpdate = {
-    enabled = true,                                                    -- Habilitar sistema de auto-update
-    repository = "https://github.com/FireGames-Developers/quest_diarias", -- Repositório GitHub
-    branch = "main",                                                   -- Branch para verificar updates
-    checkInterval = 3600000,                                          -- Intervalo de verificação em ms (1 hora)
-    autoDownload = false,                                             -- Download automático (recomendado: false)
-    backupBeforeUpdate = true,                                        -- Criar backup antes de atualizar
-    notifyAdmins = true                                               -- Notificar admins sobre updates
+    Enabled = true,                                                    -- Ativar sistema de auto-update
+    Repository = "FireGames-Developers/quest_diarias", -- Repositório GitHub (formato owner/repo)
+    Branch = "main",                                                   -- Branch para verificar updates
+    CheckInterval = 0,                                                -- 0 = checar apenas uma vez no start/restart
+    AutoDownload = false,                                             -- Download automático (recomendado: false)
+    BackupBeforeUpdate = true,                                        -- Criar backup antes de atualizar
+    NotifyAdmins = true                                               -- Notificar admins sobre updates
 }
 
 
@@ -29,14 +30,15 @@ Config.AutoUpdate = {
 
 -- Blip
 Config.blipAllowed  = true
-Config.Name         = "Mercado negro"
+Config.Name         = "Missões diárias"
 Config.blipModel    = 1664425300 -- native blip creator param
-Config.blipsprite   = -2128054417 -- sprite (teste), mude se quiser
+Config.blipsprite   = -352964861 -- blip_mp_location_k
 Config.blipColor    = 1
 
 -- NPC
-Config.NpcModel     = "mp_a_f_m_saloonband_females_01"
+Config.NpcModel     = "rcsp_odriscolls2_females_01"
 Config.NpcPosition  = { x = -1523.831, y = 2518.854, z = 395.698, h = 18.69 }
+Config.NpcName      = "Karine"
 
 -- Prompt / UI
 Config.Key          = 0xCEFD9220 -- tecla E
@@ -46,19 +48,19 @@ Config.mission = 1 -- 1 = Missão 1, 2 = Missão 2
 
 Config.elementsMenu = {
     {
-        label = "Pegar missão",
+        label = "Ajudar " .. (Config.NpcName or "NPC"),
         value = 'getQuest',
-        desc = "Pegar missão"
+        desc = "Ajudar " .. (Config.NpcName or "NPC")
     },
     {
-        label = "Entregar missão",
+        label = "Entregar Itens",
         value = 'deliveryQuest',
-        desc = "Entregar missão"
+        desc = "Entregar Itens"
     }
 }
 
 Config.text         = {
     welcome = "Bem vindo",
-    openmenu = "Falar com a Karine",
+    openmenu = "Falar com " .. (Config.NpcName or "NPC"),
     store = "Missões diárias"
 }

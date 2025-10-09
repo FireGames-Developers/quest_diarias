@@ -17,7 +17,10 @@ AddEventHandler('quest_diarias:questStarted', function(questId)
     -- Notificar o jogador
     VorpCore.Callback.TriggerAsync('quest_diarias:getQuestInfo', function(questInfo)
         if questInfo then
-            TriggerEvent('vorp:TipBottom', ('Missão iniciada: %s'):format(questInfo.name), 5000)
+            local npcName = Config.NpcName or 'NPC'
+            local details = questInfo.description or 'Verifique o mapa e os objetivos.'
+            local msg = ('Você aceitou a missão de %s. Detalhes: %s'):format(npcName, details)
+            TriggerEvent('vorp:TipBottom', msg, 7000)
         end
     end, questId)
 end)
@@ -68,7 +71,7 @@ AddEventHandler('quest_diarias:createQuestBlip', function(questId, blipData)
     end
     
     local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, blipData.x, blipData.y, blipData.z)
-    SetBlipSprite(blip, blipData.sprite or -2128054417, true)
+    SetBlipSprite(blip, blipData.sprite or Config.blipsprite, true)
     Citizen.InvokeNative(0x9CB1A1623062F402, blip, blipData.name or 'Missão')
     
     if blipData.color then

@@ -1,9 +1,9 @@
--- Quest 1: Caça ao Faisão
+-- Missão 1: Caça ao Faisão
 -- Desenvolvido por FTx3g
 
 Quest1 = {}
 
--- Configurações da Quest
+-- Configurações da Missão
 Quest1.Config = {
     id = 1,
     name = "Caça ao Faisão",
@@ -40,7 +40,7 @@ Quest1.Config = {
         start = "Vá até a área marcada no mapa e caçar um faisão. Traga a carcaça de volta para mim.",
         progress = "Você precisa caçar um faisão na área marcada.",
         complete = "Excelente trabalho! Aqui está sua recompensa.",
-        alreadyCompleted = "Você já completou esta missão hoje. Volte amanhã!",
+        alreadyCompleted = ("Você já ajudou %s hoje. Volte amanhã para novas solicitações."):format(Config.NpcName or 'NPC'),
         noItem = "Você não tem a carcaça do faisão necessária.",
         error = "Ocorreu um erro ao processar a missão."
     }
@@ -93,7 +93,9 @@ end
 -- Função para iniciar a missão
 function Quest1.StartQuest(source)
     -- Criar blip da área de caça
-    TriggerClientEvent('quest_diarias:createHuntingBlip', source, Quest1.Config.markers.huntingArea)
+    local area = Quest1.Config.markers.huntingArea
+    local blipData = { x = area.coords.x, y = area.coords.y, z = area.coords.z, sprite = Config.blipsprite, color = area.blip.color, name = area.blip.name }
+    TriggerClientEvent('quest_diarias:createQuestBlip', source, Quest1.Config.id, blipData)
     
     -- Notificar o jogador
     TriggerClientEvent('vorp:TipBottom', source, Quest1.Config.texts.start, 5000)
@@ -128,7 +130,7 @@ function Quest1.CompleteQuest(source)
                 {identifier, Quest1.Config.id})
             
             -- Remover blip da área de caça
-            TriggerClientEvent('quest_diarias:removeHuntingBlip', source)
+            TriggerClientEvent('quest_diarias:removeQuestBlip', source, Quest1.Config.id)
             
             -- Notificar sucesso
             TriggerClientEvent('vorp:TipBottom', source, Quest1.Config.texts.complete, 3000)

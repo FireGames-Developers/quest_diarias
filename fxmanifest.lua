@@ -22,8 +22,10 @@ client_scripts {
 
 server_scripts {
     'config.lua',
-    'server/init.lua',
+    'server/module_loader.lua',
     'server/database.lua',
     'server/updater.lua',
-    'server/*.lua'
+    'server/quest_handler.lua',
+    'server/init.lua',
+    'server/test_mission.lua'
 }

@@ -1,47 +1,118 @@
--- Inicialização do Sistema de Missões Diárias
--- Desenvolvido por FTx3g
+-- ============================================================================
+-- QUEST DIÁRIAS - SISTEMA DE INICIALIZAÇÃO
+-- ============================================================================
+-- Este arquivo é responsável por inicializar todos os módulos do sistema
+-- de quest diárias após o VORP Core estar totalmente carregado.
+-- 
+-- DEPENDÊNCIA CRÍTICA: Este script depende do evento 'vorp:SelectedCharacter'
+-- do VORP Core para garantir inicialização segura. O evento é disparado quando
+-- um jogador seleciona seu personagem, indicando que o VORP Core está
+-- completamente carregado e todos os seus sistemas estão operacionais.
+-- ============================================================================
 
--- Aguardar VORP Core estar pronto
-Citizen.CreateThread(function()
-    while not exports.vorp_core:GetCore() do
-        Citizen.Wait(100)
+local VorpCore = exports.vorp_core:GetCore()
+
+-- Variáveis de controle de inicialização
+local isInitialized = false
+local initializationAttempts = 0
+local maxInitializationAttempts = 3
+
+-- ============================================================================
+-- FUNÇÃO DE INICIALIZAÇÃO DOS MÓDULOS
+-- ============================================================================
+-- Esta função carrega e inicializa todos os módulos necessários do sistema
+-- de quest diárias de forma segura, com tratamento de erros robusto.
+-- ============================================================================
+local function InitializeQuestSystem()
+    if isInitialized then
+        return -- Evita inicialização dupla
     end
     
-    if Config.DevMode then
-        print('[Quest Diarias] VORP Core carregado, inicializando sistema...')
-    end
+    initializationAttempts = initializationAttempts + 1
+    print("^3[QUEST DIÁRIAS]^0 Tentativa de inicialização #" .. initializationAttempts)
     
-    -- Carregar módulo de database
-    local Database = require('server.database')
+    local success = true
     
-    -- Carregar módulo de auto-update
-    local Updater = require('server.updater')
-    
-    -- Inicializar database
-    Database.Initialize()
-    
-    -- Inicializar sistema de auto-update
-    Updater.Initialize()
-    
-    if Config.DevMode then
-        print('[Quest Diarias] Sistema inicializado com sucesso!')
-        print('[Quest Diarias] Comandos administrativos disponíveis:')
-        print('[Quest Diarias] - /questdb_status (verificar status do banco)')
-        print('[Quest Diarias] - /questdb_cleanup (limpeza manual)')
-        print('[Quest Diarias] - /quest_checkupdate (verificar atualizações)')
-        print('[Quest Diarias] - /quest_update (detalhes da atualização)')
-    end
-    
-    -- Health check a cada 30 minutos
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(1800000) -- 30 minutos
-            
-            if Config.DevMode then
-                Database.GetStats(function(stats)
-                    print(('[Quest Diarias] Health Check - Total de registros: %d'):format(stats.totalRecords))
-                end)
-            end
+    -- ========================================================================
+    -- INICIALIZAÇÃO DO MÓDULO DE BANCO DE DADOS
+    -- ========================================================================
+    local Database = ModuleLoader.LoadModule("server/database.lua", "Database")
+    if Database and Database.Initialize then
+        local dbOk = false
+        local ok, err = pcall(function()
+            dbOk = Database.Initialize()
+        end)
+        if ok and dbOk then
+            print("^2[QUEST DIÁRIAS]^0 ✓ Módulo de banco de dados inicializado com sucesso via ModuleLoader")
+        else
+            print("^1[QUEST DIÁRIAS]^0 ✗ Erro: Falha ao inicializar banco de dados via ModuleLoader" .. (err and (" - " .. tostring(err)) or ""))
+            success = false
         end
-    end)
+    else
+        print("^1[QUEST DIÁRIAS]^0 ✗ Erro: Falha ao carregar módulo de banco de dados via ModuleLoader")
+        success = false
+    end
+    
+    -- ========================================================================
+    -- INICIALIZAÇÃO DO MÓDULO DE ATUALIZAÇÕES
+    -- ========================================================================
+    local Updater = ModuleLoader.LoadModule("server/updater.lua", "Updater")
+    if Updater and Updater.Initialize then
+        Updater.Initialize()
+        print("^2[QUEST DIÁRIAS]^0 ✓ Módulo de atualizações inicializado com sucesso via ModuleLoader")
+    else
+        print("^1[QUEST DIÁRIAS]^0 ✗ Erro: Falha ao carregar módulo de atualizações via ModuleLoader")
+        success = false
+    end
+    
+    if success then
+        isInitialized = true
+        print("^2[QUEST DIÁRIAS]^0 ✓ Sistema inicializado com sucesso após evento VORP")
+    else
+        print("^1[QUEST DIÁRIAS]^0 ✗ Falha na inicialização (tentativa " .. initializationAttempts .. "/" .. maxInitializationAttempts .. ")")
+        
+        -- Tenta novamente se não excedeu o limite de tentativas
+        if initializationAttempts < maxInitializationAttempts then
+            SetTimeout(5000, function()
+                print("^3[QUEST DIÁRIAS]^0 Reagendando inicialização em 5 segundos...")
+                InitializeQuestSystem()
+            end)
+        else
+            print("^1[QUEST DIÁRIAS]^0 ✗ ERRO CRÍTICO: Máximo de tentativas de inicialização excedido!")
+        end
+    end
+end
+
+-- ============================================================================
+-- LISTENER DO EVENTO VORP CORE
+-- ============================================================================
+-- IMPORTANTE: Este evento é uma dependência crítica do VORP Core.
+-- O evento 'vorp:SelectedCharacter' é disparado quando um jogador seleciona
+-- seu personagem, garantindo que o VORP Core está totalmente carregado.
+-- 
+-- Evitamos usar este evento sempre que possível, mas neste caso é necessário
+-- para garantir que todos os sistemas do VORP estejam operacionais antes
+-- de inicializar nossos módulos que dependem deles.
+-- ============================================================================
+AddEventHandler('vorp:SelectedCharacter', function(source, player)
+    -- Só inicializa uma vez, quando o primeiro jogador se conecta
+    if not isInitialized and initializationAttempts == 0 then
+        print("^3[QUEST DIÁRIAS]^0 Evento VORP detectado - iniciando sistema...")
+        InitializeQuestSystem()
+    end
+end)
+
+-- ============================================================================
+-- SISTEMA DE FALLBACK
+-- ============================================================================
+-- Como medida de segurança, também tentamos inicializar após um delay
+-- caso o evento VORP não seja disparado por algum motivo.
+-- ============================================================================
+CreateThread(function()
+    Wait(30000) -- Aguarda 30 segundos
+    
+    if not isInitialized and initializationAttempts == 0 then
+        print("^3[QUEST DIÁRIAS]^0 Fallback: Iniciando sistema após timeout (evento VORP não detectado)")
+        InitializeQuestSystem()
+    end
 end)

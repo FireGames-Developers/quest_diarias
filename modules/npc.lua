@@ -1,5 +1,20 @@
 
 ---------------- NPC ---------------------
+-- Fallback de debug (caso globais não estejam definidos ainda)
+if type(DebugPrint) ~= 'function' then
+    function DebugPrint(msg)
+        if Config and Config.DevMode then
+            print(tostring(msg))
+        end
+    end
+end
+if type(DebugError) ~= 'function' then
+    function DebugError(err)
+        if Config and Config.DevMode then
+            print('[Quest NPC] ' .. tostring(err))
+        end
+    end
+end
 local function LoadModel(model)
     local ok, err = pcall(function()
         if not HasModelLoaded(model) then
