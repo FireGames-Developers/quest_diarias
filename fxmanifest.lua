@@ -17,7 +17,8 @@ dependencies {
 client_scripts {
     'config.lua',
     'modules/*.lua',
-    'client/*.lua'
+    'client/*.lua',
+    'quests/*.lua'
 }
 
 server_scripts {

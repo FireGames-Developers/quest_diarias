@@ -1,5 +1,9 @@
--- Quest Manager - Sistema de Gerenciamento de Missões
--- Desenvolvido por FTx3g
+-- ============================================================================
+-- MÓDULO: Quest Manager
+-- Responsável por carregar, iniciar, completar e listar missões diárias.
+-- Carrega arquivos de `quests/questN.lua` com segurança via `LoadResourceFile`.
+-- Dependências: `Config`, eventos client (`quest_diarias:*`), e DB via missões.
+-- ============================================================================
 
 QuestManager = {}
 QuestManager.LoadedQuests = {}
@@ -49,7 +53,7 @@ function QuestManager.GetQuest(questId)
     return QuestManager.LoadedQuests[questId]
 end
 
--- Função para iniciar uma quest
+-- Função para iniciar uma quest (sem checagem diária por-quest)
 function QuestManager.StartQuest(source, questId)
     local quest = QuestManager.GetQuest(questId)
     if not quest then
@@ -58,17 +62,13 @@ function QuestManager.StartQuest(source, questId)
         end
         return false
     end
-    
-    -- Verificar se o jogador pode fazer a quest
-    quest.CanDoQuest(source, function(canDo)
-        if canDo then
-            quest.StartQuest(source)
-            TriggerClientEvent('quest_diarias:questStarted', source, questId)
-        else
-            TriggerClientEvent('vorp:TipBottom', source, quest.Config.texts.alreadyCompleted, 3000)
-        end
-    end)
-    
+
+    -- A checagem diária é centralizada no servidor via 'quest_diarias:canDoQuest'.
+    -- Aqui apenas disparamos a lógica específica da missão.
+    if quest.StartQuest and type(quest.StartQuest) == 'function' then
+        quest.StartQuest(source)
+    end
+    TriggerClientEvent('quest_diarias:questStarted', source, questId)
     return true
 end
 

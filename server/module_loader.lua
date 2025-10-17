@@ -75,6 +75,11 @@ function ModuleLoader.GetLoadedModules()
     return modules
 end
 
+-- Reset interno (usado em restart de resource)
+function ModuleLoader.Reset()
+    ModuleLoader.LoadedModules = {}
+end
+
 print("^2[QUEST DIÁRIAS]^0 ✓ Sistema de carregamento de módulos inicializado")
 
 return ModuleLoader

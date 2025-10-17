@@ -1,3 +1,10 @@
+-- ============================================================================
+-- MÓDULO: Menu e Prompt
+-- Configura o prompt de interação perto do NPC e abre o menu
+-- usando `vorp_menu`. Oferece opções para iniciar missão ou
+-- entregar itens da missão atual.
+-- Dependências: `Config`, `DebugPrint`, `DebugError`, `vorp_menu`.
+-- ============================================================================
 inmenu = false
 prompts = GetRandomIntInRange(0, 0xffffff)
 MenuData = exports.vorp_menu:GetMenuData()
@@ -32,7 +39,20 @@ end
 function OpenStore()
 
     MenuData.CloseAll()
-    local elements = Config.elementsMenu
+    local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or "NPC"
+    local deliverLabel, deliverDesc
+    if Config.mission == 1 then
+        deliverLabel = "Entregar Faisão"
+        deliverDesc  = "Entregar faisão nas mãos"
+    else
+        deliverLabel = "Entregar Itens"
+        deliverDesc  = "Entregar Itens"
+    end
+
+    local elements = {
+        { label = "Ajudar " .. npcName, value = 'getQuest', desc = "Ajudar " .. npcName },
+        { label = deliverLabel,          value = 'deliveryQuest', desc = deliverDesc }
+    }
     inmenu = true
 
     MenuData.Open('default', GetCurrentResourceName(), 'menuapi',
@@ -44,14 +64,15 @@ function OpenStore()
         },
         function(data, menu)
             if data.current.value == 'getQuest' then
-                DebugPrint(("Opção Ajudar %s selecionada"):format(Config.NpcName or 'NPC'))
-                -- Iniciar a missão configurada
-                TriggerServerEvent('quest_diarias:startQuest', Config.mission)
+                DebugPrint(("Opção Ajudar %s selecionada"):format(npcName))
+                -- Solicitar verificação de elegibilidade diária antes de iniciar
+                TriggerServerEvent('quest_diarias:canDoQuest', Config.mission)
                 CloseStore()
             elseif data.current.value == 'deliveryQuest' then
-                DebugPrint("Opção Entregar Itens selecionada")
-                -- Tentar entrega via cliente, validando que está carregando o faisão
-                TriggerEvent('quest_diarias:attemptDelivery', Config.mission)
+                DebugPrint("Opção Entregar selecionada")
+                -- Aciona evento específico da missão atual (dinâmico por ID)
+                local evt = ('quest_diarias:quest%d:attemptDelivery'):format(Config.mission)
+                TriggerEvent(evt)
                 CloseStore()
             end
         end,

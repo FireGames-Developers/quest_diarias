@@ -39,20 +39,39 @@ local function deleteCarriedEntity(entity)
     end
 end
 
+-- Entrega genérica de missão atual
 RegisterNetEvent('quest_diarias:attemptDelivery')
 AddEventHandler('quest_diarias:attemptDelivery', function(questId)
     local ped = PlayerPedId()
-
     VorpCore.Callback.TriggerAsync('quest_diarias:getQuestInfo', function(questInfo)
-        local npcName = (Config and Config.NpcName) or 'NPC'
+        local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC'
         local texts = questInfo and questInfo.texts or {}
 
-        if not isPedCarryingSomething(ped) then
-            TriggerEvent('vorp:TipBottom', texts and texts.notDelivered or 'Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome', 5000)
-            return
+        local function GetCurrentNpcIndex()
+            if Config.CurrentNPCIdx then return Config.CurrentNPCIdx end
+            local name = Config.CurrentNPC and Config.CurrentNPC.name
+            if name and Config.NPCs then
+                for i, npc in ipairs(Config.NPCs) do
+                    if npc.name == name then return i end
+                end
+            end
+            return nil
         end
+        local npcIdx = GetCurrentNpcIndex()
 
         VorpCore.Callback.TriggerAsync('quest_diarias:getDeliveryConfig', function(delivery)
+            -- Missão 2: entrega via inventário (requiredItem)
+            if delivery and delivery.requiredItem then
+                TriggerServerEvent('quest_diarias:attemptDeliveryInventory', questId, npcIdx)
+                return
+            end
+
+            -- Missão 1: entrega segurando a carcaça (modelos aceitos)
+            if not isPedCarryingSomething(ped) then
+                TriggerEvent('vorp:TipBottom', texts and texts.notDelivered or 'Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome', 5000)
+                return
+            end
+
             local accepted = (delivery and delivery.acceptedModels) or {'A_C_PHEASANT_01', 'P_FOXPHEASANT01X'}
             local carried = getFirstEntityPedIsCarrying(ped)
 
@@ -60,7 +79,7 @@ AddEventHandler('quest_diarias:attemptDelivery', function(questId)
                 local ok = deleteCarriedEntity(carried)
                 if ok then
                     TriggerEvent('vorp:TipBottom', texts and texts.complete or ('Obrigado pela ajuda, ' .. npcName .. ' vai usar isso agora.'), 5000)
-                    TriggerServerEvent('quest_diarias:completeQuest', questId)
+                    TriggerServerEvent('quest_diarias:completeQuest', questId, npcIdx)
                 else
                     TriggerEvent('vorp:TipBottom', texts and texts.error or 'Falha ao entregar o item.', 4000)
                 end
@@ -68,5 +87,29 @@ AddEventHandler('quest_diarias:attemptDelivery', function(questId)
                 TriggerEvent('vorp:TipBottom', texts and texts.notDelivered or 'Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome', 5000)
             end
         end, questId)
+    end, questId)
+end)
+
+-- Sucesso de entrega via inventário: conclui missão e mostra feedback
+RegisterNetEvent('quest_diarias:inventoryDeliverySuccess')
+AddEventHandler('quest_diarias:inventoryDeliverySuccess', function(questId)
+    local function GetCurrentNpcIndex()
+        if Config.CurrentNPCIdx then return Config.CurrentNPCIdx end
+        local name = Config.CurrentNPC and Config.CurrentNPC.name
+        if name and Config.NPCs then
+            for i, npc in ipairs(Config.NPCs) do
+                if npc.name == name then return i end
+            end
+        end
+        return nil
+    end
+    local npcIdx = GetCurrentNpcIndex()
+
+    VorpCore.Callback.TriggerAsync('quest_diarias:getQuestInfo', function(questInfo)
+        local texts = questInfo and questInfo.texts or {}
+        if texts and texts.complete then
+            TriggerEvent('vorp:TipBottom', texts.complete, 5000)
+        end
+        TriggerServerEvent('quest_diarias:completeQuest', questId, npcIdx)
     end, questId)
 end)

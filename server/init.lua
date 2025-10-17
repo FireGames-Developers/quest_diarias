@@ -109,10 +109,42 @@ end)
 -- caso o evento VORP não seja disparado por algum motivo.
 -- ============================================================================
 CreateThread(function()
-    Wait(30000) -- Aguarda 30 segundos
-    
-    if not isInitialized and initializationAttempts == 0 then
-        print("^3[QUEST DIÁRIAS]^0 Fallback: Iniciando sistema após timeout (evento VORP não detectado)")
+    -- Fallback mais agressivo: tenta várias vezes rapidamente após restart
+    local tries = 0
+    while not isInitialized and tries < 10 do
+        tries = tries + 1
+        Wait(2000)
+        if not isInitialized then
+            InitializeQuestSystem()
+        end
+    end
+end)
+
+AddEventHandler('onResourceStart', function(resourceName)
+    if resourceName == GetCurrentResourceName() then
+        if Config.DevMode then
+            print('[Quest Server] Reinício detectado; resetando módulos e re-inicializando')
+        end
+        local ModuleLoader = _G.ModuleLoader or nil
+        if ModuleLoader and ModuleLoader.Reset then
+            ModuleLoader.Reset()
+        end
+        -- Reinicializa usando a rotina oficial
+        isInitialized = false
+        initializationAttempts = 0
         InitializeQuestSystem()
+    end
+end)
+AddEventHandler('onResourceStop', function(resourceName)
+    if resourceName == GetCurrentResourceName() then
+        if Config.DevMode then
+            print('[Quest Server] Resource parando; limpando estados')
+        end
+        local ModuleLoader = _G.ModuleLoader or nil
+        if ModuleLoader and ModuleLoader.Reset then
+            ModuleLoader.Reset()
+        end
+        isInitialized = false
+        initializationAttempts = 0
     end
 end)

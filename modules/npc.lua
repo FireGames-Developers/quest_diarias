@@ -1,4 +1,11 @@
 
+-- =============================================================================
+-- MÓDULO: NPC
+-- Gerencia spawn/despawn do NPC com base na distância do jogador,
+-- configuração de invencibilidade e integração com prompt/menu.
+-- Também escuta evento opcional do servidor para forçar spawn.
+-- Dependências: `Config`, `DebugPrint`, `DebugError`, `menu.lua` e `blips.lua`.
+-- =============================================================================
 ---------------- NPC ---------------------
 -- Fallback de debug (caso globais não estejam definidos ainda)
 if type(DebugPrint) ~= 'function' then
@@ -26,14 +33,16 @@ local function LoadModel(model)
     if not ok then DebugError(err) end
 end
 
-local function SpawnNPC(networked)
+-- Removido suporte single-NPC; usar SpawnNPCForIndex com Config.NPCs
+
+-- Multi-NPC: spawn por índice
+local function SpawnNPCForIndex(idx, npcConf, networked)
     local ok, err = pcall(function()
-        LoadModel(Config.NpcModel)
-        
+        LoadModel(npcConf.model)
         local isNetwork = networked == true
         local attachToScript = isNetwork
-        local npc = CreatePed(joaat(Config.NpcModel), Config.NpcPosition.x, Config.NpcPosition.y, Config.NpcPosition.z,
-            Config.NpcPosition.h, isNetwork, attachToScript, false, false)
+        local p = npcConf.position
+        local npc = CreatePed(joaat(npcConf.model), p.x, p.y, p.z, p.h, isNetwork, attachToScript, false, false)
         repeat Wait(100) until DoesEntityExist(npc)
         SetRandomOutfitVariation(npc, false)
         PlaceEntityOnGroundProperly(npc, true)
@@ -44,16 +53,13 @@ local function SpawnNPC(networked)
         Wait(1000)
         TaskStandStill(npc, -1)
         SetBlockingOfNonTemporaryEvents(npc, true)
-        SetModelAsNoLongerNeeded(Config.NpcModel)
-        Config.NPC = npc
-        DebugPrint("NPC spawnado (networked=" ..
-            tostring(isNetwork) ..
-            ") em: " .. Config.NpcPosition.x .. ", " .. Config.NpcPosition.y .. ", " .. Config.NpcPosition.z)
+        SetModelAsNoLongerNeeded(npcConf.model)
+        Config.NPC_ENTS = Config.NPC_ENTS or {}
+        Config.NPC_ENTS[idx] = npc
+        DebugPrint(("NPC '%s' spawnado (networked=%s) em: %.3f, %.3f, %.3f"):format(npcConf.name or ('NPC #'..idx), tostring(isNetwork), p.x, p.y, p.z))
     end)
     if not ok then DebugError(err) end
 end
-
-
 
 ---------------- DISTÂNCIA ---------------------
 local function getDistance(config)
@@ -64,20 +70,23 @@ local function getDistance(config)
 end
 
 ---------------- SPAWN/DESPWN NPC ---------------------
-local function CreateNpcByDistance(distance)
+-- Removido fallback single-NPC; use CreateNpcByDistanceForIndex
+
+-- Multi-NPC
+local function CreateNpcByDistanceForIndex(idx, npcConf, distance)
     local ok, err = pcall(function()
+        Config.NPC_ENTS = Config.NPC_ENTS or {}
         if distance <= 40 then
-            if not Config.NPC then
-                DebugPrint("Distância menor que 40, spawnando NPC")
-                -- se quiser networked para todos, passe true
-                SpawnNPC(true)
+            if not Config.NPC_ENTS[idx] then
+                DebugPrint(("Distância <= 40, spawnando NPC '%s' (#%d)"):format(npcConf.name or 'NPC', idx))
+                SpawnNPCForIndex(idx, npcConf, true)
             end
         else
-            if Config.NPC then
-                DebugPrint("Distância maior que 40, despawnando NPC")
-                SetEntityAsNoLongerNeeded(Config.NPC)
-                DeleteEntity(Config.NPC)
-                Config.NPC = nil
+            if Config.NPC_ENTS[idx] then
+                DebugPrint(("Distância > 40, despawnando NPC '%s' (#%d)"):format(npcConf.name or 'NPC', idx))
+                SetEntityAsNoLongerNeeded(Config.NPC_ENTS[idx])
+                DeleteEntity(Config.NPC_ENTS[idx])
+                Config.NPC_ENTS[idx] = nil
             end
         end
     end)
@@ -88,24 +97,38 @@ end
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName == GetCurrentResourceName() then
         DebugPrint("Recurso parado, limpando NPC/blip")
-        if Config.NPC and DoesEntityExist(Config.NPC) then
-            SetEntityAsNoLongerNeeded(Config.NPC)
-            DeleteEntity(Config.NPC)
-            Config.NPC = nil
+        -- Removidos limpeza de single NPC/blip; apenas múltiplos são usados agora
+        if Config.NPC_ENTS then
+            for i, ped in pairs(Config.NPC_ENTS) do
+                if DoesEntityExist(ped) then
+                    SetEntityAsNoLongerNeeded(ped)
+                    DeleteEntity(ped)
+                end
+                Config.NPC_ENTS[i] = nil
+            end
+            Config.NPC_ENTS = nil
         end
-        if Config.BlipHandle then
-            RemoveBlip(Config.BlipHandle)
-            Config.BlipHandle = nil
+        if Config.BlipHandles then
+            for i, blip in pairs(Config.BlipHandles) do
+                if blip then RemoveBlip(blip) end
+                Config.BlipHandles[i] = nil
+            end
+            Config.BlipHandles = nil
         end
     end
 end)
 
 ---------------- THREAD PRINCIPAL ---------------------
 -- Inicializa quando o player spawnar no client
-AddEventHandler('playerSpawned', function()
+-- Guard para evitar múltiplos loops simultâneos
+local npcLoopStarted = false
+
+local function StartNpcLoop()
+    if npcLoopStarted then return end
+    npcLoopStarted = true
     CreateThread(function()
         repeat Wait(2000) until LocalPlayer and LocalPlayer.state and LocalPlayer.state.IsInSession
-        DebugPrint("playerSpawned recebido no client, inicializando prompt e loop")
+        DebugPrint("Inicializando prompt/NPC/blip (loop)")
         PromptSetUp()
 
         while true do
@@ -113,36 +136,65 @@ AddEventHandler('playerSpawned', function()
             local player = PlayerPedId()
             local dead = IsEntityDead(player)
             if not dead then
-                local distance = getDistance(Config.NpcPosition)
+                local npcs = Config.NPCs or {}
+                if #npcs > 0 then
+                    -- Multi-NPC
+                    local nearestIdx, nearestDist = nil, nil
+                    for i, npcConf in ipairs(npcs) do
+                        local dist = getDistance(npcConf.position)
 
-                if not Config.BlipHandle and Config.blipAllowed then
-                    AddBlip()
-                end
+                        -- blip por NPC
+                        if Config.blipAllowed then
+                            Config.BlipHandles = Config.BlipHandles or {}
+                            if not Config.BlipHandles[i] then
+                                AddBlipForNpc(i, npcConf)
+                            end
+                        end
 
-                CreateNpcByDistance(distance)
+                        -- spawn/despawn
+                        CreateNpcByDistanceForIndex(i, npcConf, dist)
 
-                if distance <= Config.distOpen then
-                    sleep = 0
-                    local label = CreateVarString(10, 'LITERAL_STRING', Config.text.store .. " " .. (Config.Name or "Loja"))
-                    PromptSetActiveGroupThisFrame(prompts, label)
-                    if PromptHasStandardModeCompleted(openmenu) then
-                        -- interagiu
-                        DebugPrint("Player ativou prompt - abrir loja")
-                        TaskStandStill(PlayerPedId(), -1)
-                        DisplayRadar(false)
-                        inmenu = OpenStore()
+                        -- selecionar mais próximo dentro do raio de abertura
+                        if dist <= Config.distOpen and (not nearestDist or dist < nearestDist) then
+                            nearestIdx = i
+                            nearestDist = dist
+                        end
+                    end
+
+                    if nearestIdx then
+                        sleep = 0
+                        local npcConf = npcs[nearestIdx]
+                        local label = CreateVarString(10, 'LITERAL_STRING', "Falar com " .. (npcConf.name or "NPC"))
+                        PromptSetActiveGroupThisFrame(prompts, label)
+                        PromptSetText(openmenu, label)
+                        if PromptHasStandardModeCompleted(openmenu) then
+                            TaskStandStill(PlayerPedId(), -1)
+                            DisplayRadar(false)
+                            Config.CurrentNPC = npcConf
+                            Config.CurrentNPCIdx = nearestIdx
+                            inmenu = OpenStore()
+                        end
                     end
                 end
             end
             Wait(sleep)
         end
     end)
+end
+
+AddEventHandler('playerSpawned', function()
+    StartNpcLoop()
+end)
+
+AddEventHandler('onClientResourceStart', function(resourceName)
+    if resourceName == GetCurrentResourceName() then
+        StartNpcLoop()
+    end
 end)
 
 -- Também ouça evento server (opcional) caso o server queira forçar spawn para um client
 RegisterNetEvent("firegames_ilegalstore:spawnNPCClient")
 AddEventHandler("firegames_ilegalstore:spawnNPCClient", function()
     DebugPrint("Evento spawnNPCClient recebido do server")
-    -- Força execução do playerSpawned handler (se quiser executar imediatamente)
-    TriggerEvent('playerSpawned')
+    StartNpcLoop()
 end)

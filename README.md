@@ -1,304 +1,178 @@
-# Quest Diárias - Sistema de Missões Diárias para VORP
+# Quest Diárias (RedM / VORP) — Estado Atual
 
-Sistema modular e extensível de missões diárias para servidores RedM usando VORP Core, com sistema de auto-atualização via GitHub.
+Sistema modular de missões diárias com duas formas de entrega (item nas mãos ou via inventário), elegibilidade diária centralizada no servidor, validação de NPC, textos configuráveis e template pronto para criar novas quests.
 
-## 🚀 Características
+## Principais Recursos
+- Missões modulares em `quests/questN.lua` carregadas via `LoadResourceFile` (seguro)
+- Duas entregas suportadas: carregando nas mãos (modelos) e inventário (item)
+- Elegibilidade diária centralizada (`quest_diarias:canDoQuest`)
+- Validação de NPC: entrega deve ocorrer no mesmo NPC usado para iniciar
+- Menu dinâmico com `vorp_menu` e prompt “Falar com [NPC]” (imersão)
+- Blips opcionais e textos 100% configuráveis
+- Template genérico `quests/quest_modelo.lua` para criar novas quests
+- Comandos para visualizar, listar, resetar e testar quests
 
-- ✅ Sistema modular e extensível
-- ✅ Controle diário automático de missões
-- ✅ Interface integrada com VORP Menu
-- ✅ Sistema de recompensas configurável
-- ✅ Blips automáticos no mapa
-- ✅ Banco de dados com limpeza automática
-- ✅ Sistema de debug para desenvolvimento
-- ✅ **Auto-atualização via GitHub**
-- ✅ **Backup automático antes de atualizações**
-- ✅ **Comandos administrativos para controle**
-- ✅ **Sistema de inicialização inteligente com VORP Core**
+## Dependências
+- `vorp_core` (obrigatório)
+- `vorp_menu` (menu do NPC)
+- `vorp_inventory` (itens, armas, moedas)
+- `oxmysql` (banco de dados)
 
-## 📋 Dependências
-
-### Dependências Obrigatórias
-- `vorp_core` - Framework principal (**CRÍTICO**)
-- `vorp_menu` - Sistema de menus
-- `oxmysql` - Conexão com banco de dados
-
-### ⚠️ Importante - Dependência do VORP Core
-
-Este recurso utiliza um **sistema de inicialização inteligente** que aguarda o VORP Core estar totalmente carregado antes de inicializar seus módulos. 
-
-**Como funciona:**
-- O sistema monitora o evento `vorp:SelectedCharacter` para detectar quando o VORP está pronto
-- Implementa múltiplas tentativas de inicialização com fallback automático
-- Utiliza `LoadResourceFile` em vez de `require()` para evitar problemas de dependência circular
-- Garante compatibilidade mesmo com ordens de carregamento diferentes
-
-**Configuração no server.cfg:**
-```cfg
-# Certifique-se de que o VORP Core seja carregado ANTES
+### server.cfg (ordem sugerida)
+```
 ensure vorp_core
 ensure vorp_menu
+ensure vorp_inventory
 ensure oxmysql
-
-# Quest Diárias pode ser carregado em qualquer ordem após as dependências
 ensure quest_diarias
 ```
 
-## 🔧 Instalação
-
-1. Extraia o recurso para a pasta `resources/[standalone]/`
-2. **IMPORTANTE**: Certifique-se de que `vorp_core`, `vorp_menu` e `oxmysql` estejam carregados antes
-3. Adicione `ensure quest_diarias` ao seu `server.cfg`
-4. Reinicie o servidor
-
-> **Nota:** O sistema criará automaticamente as tabelas necessárias no banco de dados na primeira inicialização e aguardará o VORP Core estar pronto.
-
-## 📁 Estrutura de Arquivos
-
+## Estrutura do Recurso
 ```
 quest_diarias/
 ├── client/
-│   └── quest_client.lua      # Gerenciamento client-side das missões
+│   ├── delivery.lua           # Fluxo genérico de entrega (mãos/inventário)
+│   └── quest_client.lua       # Eventos de início/conclusão e blips
 ├── server/
-│   ├── init.lua             # Inicialização inteligente com VORP Core
-│   ├── database.lua         # Gerenciamento automático do banco de dados
-│   ├── updater.lua          # Sistema de auto-atualização via GitHub
-│   ├── quest_handler.lua    # Manipulação server-side das missões
-│   └── commands.lua         # Comandos consolidados (/quest, /quest_list, /quest_reset, /quest_test)
+│   ├── commands.lua           # /quest, /quest_list, /quest_reset, /quest_test
+│   ├── database.lua           # Acesso e manutenção do banco
+│   ├── quest_handler.lua      # Regras centrais de start/complete/entrega
+│   ├── module_loader.lua      # Loader seguro de módulos
+│   └── updater.lua            # Comandos de atualização (opcional)
 ├── modules/
-│   ├── blips.lua           # Sistema de blips no mapa
-│   ├── menu.lua            # Interface do menu
-│   ├── debug.lua           # Ferramentas de debug
-│   └── quest_manager.lua   # Gerenciador dinâmico de missões
+│   ├── menu.lua               # Menu e prompt “Falar com [NPC]”
+│   ├── npc.lua                # Spawn e estado do NPC atual
+│   ├── blips.lua              # Utilidades de blip
+│   └── quest_manager.lua      # Carrega quests e expõe metadados
 ├── quests/
-│   └── quest1.lua          # Missão exemplo: Caça ao Faisão
-├── config.lua              # Configurações principais
-├── fxmanifest.lua         # Manifesto do recurso
-└── README.md              # Este arquivo
+│   ├── quest1.lua             # Caça ao Faisão (entrega nas mãos)
+│   ├── quest2.lua             # Doces para Karine (inventário)
+│   └── quest_modelo.lua       # Template para novas quests
+├── config.lua                 # Configuração geral (NPCs, teclas, textos, missão ativa)
+└── fxmanifest.lua
 ```
 
-## ⚙️ Configuração
+## Fluxo da Missão
+- Aproximar do NPC: prompt dinâmico `Config.text.openmenu` → “Falar com [NPC]”
+- Abrir menu:
+  - “Ajudar [NPC]” → servidor valida com `quest_diarias:canDoQuest` e inicia com `quest_diarias:startQuest`
+  - “Entregar Itens” (ou “Entregar Faisão” quando `Config.mission == 1`) → aciona `quest_diarias:quest<ID>:attemptDelivery`
+- Entrega nas mãos: cliente valida modelos aceitos, remove entidade e chama `quest_diarias:completeQuest`
+- Entrega via inventário: servidor valida item, subtrai e confirma com `quest_diarias:inventoryDeliverySuccess`; cliente chama `quest_diarias:completeQuest`
+- Conclusão: servidor aplica recompensas e registra histórico; cliente mostra feedback e remove blips
 
-### Config.lua Principal
+## Configuração (config.lua)
+- `Config.DevMode` — ativa logs de desenvolvimento
+- `Config.MoreOne` — `false` = 1 missão/dia; `true` = várias por dia
+- `Config.NPCs` — nome, modelo e posição dos NPCs
+- `Config.Key` / `Config.distOpen` — tecla e distância para abrir o menu
+- `Config.mission` — ID da missão ativa (o menu usa isso)
+- `Config.text` — `welcome`, `openmenu` (“Falar com NPC”), `store`
+- Blips: `Config.blipAllowed`, `Config.blipsprite`, `Config.blipColor`, etc.
 
-```lua
-Config = {}
-Config.DevMode = true -- Ativar logs de debug
-Config.Version = "2.1.0" -- Versão atual do sistema
+## Criação de Quests com o Template
+Use `quests/quest_modelo.lua` para começar rápido:
+1. Copie para `quests/questN.lua` e ajuste `Quest.Config.id`, `name`, `description`, `rewards`.
+2. Escolha o tipo de entrega:
+   - Mãos: `delivery.acceptedModels = { 'MODEL_A', 'MODEL_B' }`
+   - Inventário: `delivery.requiredItem = 'apple'`
+3. Ajuste `texts`: `start`, `progress`, `deliverHint`, `complete`, `alreadyCompleted`, `notDelivered`, `error`.
+4. Opcional: `markers` para criar blips ao iniciar (`StartQuest`).
+5. O template registra o evento `quest_diarias:quest<ID>:attemptDelivery` no cliente e delega ao fluxo genérico.
 
--- Configurações do NPC
-Config.npc = {
-    model = "A_M_M_UniBoatCrew_01",
-    coords = vector4(-1807.52, -374.13, 158.15, 205.71)
-}
+### Contratos usados pelo sistema
+- Cliente:
+  - `quest_diarias:quest<ID>:attemptDelivery` → dispara fluxo genérico
+  - `quest_diarias:questStarted`, `quest_diarias:questCompleted`, `quest_diarias:inventoryDeliverySuccess`
+- Callbacks:
+  - `quest_diarias:getQuestInfo` → metadados para mensagens
+  - `quest_diarias:getDeliveryConfig` → decide mãos vs inventário
+- Servidor:
+  - `quest_diarias:canDoQuest`, `quest_diarias:startQuest`, `quest_diarias:completeQuest`
+  - `quest_diarias:attemptDeliveryInventory` (quando `requiredItem`)
 
--- Configurações de Auto-Update
-Config.AutoUpdate = {
-    Enabled = true,                                                    -- Ativar sistema de auto-update
-    Repository = "FireGames-Developers/quest_diarias",                 -- Repositório GitHub (formato owner/repo)
-    Branch = "main",                                                   -- Branch para verificar
-    CheckInterval = 60,                                               -- Intervalo de verificação (em minutos)
-    AutoDownload = false,                                             -- Download automático (recomendado: false)
-    BackupBeforeUpdate = true,                                        -- Criar backup antes da atualização
-    NotifyAdmins = true                                               -- Notificar admins sobre atualizações
-}
+## Comandos
+- `/quest` — mostra resumo da missão ativa
+- `/quest_list` — lista últimas quests do personagem
+- `/quest_reset [id]` — reseta a conclusão de hoje da missão informada (ou a última concluída hoje)
+- `/quest_test [dist] [questId]` — teste rápido; spawna faisão (missão 1) ou dá item (missão 2). Requer ACE `command.quest_test`.
+- (opcional) `/quest_checkupdate` e `/quest_update` — comandos do updater
+
+### Permissões ACE (exemplo)
 ```
-
-### Configuração de Missões Individuais
-
-Cada missão em `quests/` deve seguir este padrão:
-
-```lua
-local Quest = {}
-
-Quest.id = 1
-Quest.name = "Nome da Missão"
-Quest.description = "Descrição da missão"
-
-Quest.requirements = {
-    item = "item_necessario",
-    amount = 1
-}
-
-Quest.rewards = {
-    money = 50,
-    xp = 100,
-    items = {
-        {name = "item_recompensa", amount = 1}
-    }
-}
-
--- Outras configurações...
-
-return Quest
-```
-
-## 🔄 Sistema de Auto-Atualização
-
-O sistema inclui verificação automática de atualizações via GitHub API:
-
-### Comandos Administrativos
-
-- `/quest_checkupdate` - Verificar manualmente por atualizações
-- `/quest_update` - Obter detalhes da atualização disponível
-
-### Configurações de Auto-Update
-
-- `Enabled`: Ativar/desativar o sistema
-- `Repository`: Repositório GitHub no formato `owner/repo` (ex.: `FireGames-Developers/quest_diarias`)
-- `Branch`: Branch para verificar
-- `CheckInterval`: Intervalo entre verificações (em minutos; `0` para apenas no start)
-- `AutoDownload`: Download automático (desabilitado por segurança)
-- `BackupBeforeUpdate`: Criar backup antes de atualizar
-- `NotifyAdmins`: Notificar administradores sobre atualizações
-
-### Funcionamento
-
-1. **Verificação Automática**: O sistema verifica por atualizações no intervalo configurado
-2. **Notificação**: Administradores são notificados quando há atualizações disponíveis
-3. **Backup**: Sistema cria backup automático antes de qualquer atualização
-4. **Segurança**: Download automático desabilitado por questões de segurança
-
-## 📊 Banco de Dados
-
-O sistema gerencia automaticamente duas tabelas:
-
-```sql
--- Tabela principal de quests
-CREATE TABLE IF NOT EXISTS quest_diarias (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    identifier VARCHAR(50) NOT NULL,
-    charid INT NOT NULL,
-    quest_id VARCHAR(100) NOT NULL,
-    status VARCHAR(20) DEFAULT 'active',
-    progress JSON NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NULL,
-    completed_at TIMESTAMP NULL,
-    INDEX idx_identifier_charid (identifier, charid),
-    INDEX idx_quest_id (quest_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
-);
-
--- Histórico de quests completadas
-CREATE TABLE IF NOT EXISTS quest_diarias_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    identifier VARCHAR(50) NOT NULL,
-    charid INT NOT NULL,
-    quest_id VARCHAR(100) NOT NULL,
-    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    rewards_given TEXT,
-    INDEX idx_identifier_charid (identifier, charid),
-    INDEX idx_quest_id (quest_id),
-    INDEX idx_completed_at (completed_at)
-);
-```
-
-### Limpeza Automática
-
-- Limpeza de quests antigas via função `Database.CleanupOldQuests`
-- Limpeza de histórico antiga via função `Database.CleanupOldHistory`
-- Comando manual (se configurado): `/questdb_cleanup`
-
-## 🎮 Como Usar
-
-1. **Jogadores**: Interajam com o NPC para acessar o menu de missões
-2. **Administradores**: Usem os comandos de debug e gerenciamento
-3. **Desenvolvedores**: Adicionem novas missões na pasta `quests/`
-
-## 🔧 Comandos
-
-### Jogador/Admin
-- `/quest` — Exibe objetivos e informações da sua missão ativa
-- `/quest_list` — Lista suas últimas quests e status (ativa/completada)
-- `/quest_reset [id]` — Reseta a conclusão de hoje da missão informada (ou a última completada hoje)
-
-### Teste de Missão
-- `/quest_test [distância]` — Spawna um faisão morto à sua frente (padrão 3.0m). Restrito via ACE.
-  - Uso: `/quest_test` ou `/quest_test 6.0`
-  - Permissão ACE: `command.quest_test`
-
-### Auto-Update
-- `/quest_checkupdate` — Verificar atualizações disponíveis
-- `/quest_update` — Obter detalhes da atualização
-
-### Reset de Missão
-- `/quest_reset [questId]` — Remove a conclusão de hoje para a missão informada (ou a última missão completada hoje, se não informado) e reabre a missão para refazer.
-
-### Observações sobre ACE
-Adicione no `server.cfg` para liberar o comando de teste para um grupo/usuário específico:
-
-```
-# Exemplo: permitir para admin
 add_ace group.admin command.quest_test allow
-# Opcional: atribuir players ao grupo admin
 add_principal identifier.steam:110000112345678 group.admin
 ```
 
-## 🆕 Adicionando Novas Missões
+## Banco de Dados (atualizado)
+O sistema utiliza Unix epoch (segundos) em timestamps para compatibilidade com `FROM_UNIXTIME(...)` usado nas consultas.
 
-1. Crie um novo arquivo em `quests/quest[numero].lua`
-2. Siga o padrão da `quest1.lua`
-3. Configure o `Config.mission` para a nova missão
-4. Reinicie o recurso
+### Tabelas
+```sql
+CREATE TABLE IF NOT EXISTS quest_diarias (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  identifier VARCHAR(50) NOT NULL,
+  charid INT NOT NULL,
+  quest_id INT NOT NULL,
+  status VARCHAR(20) DEFAULT 'active',
+  progress JSON NULL,
+  created_at INT UNSIGNED,
+  updated_at INT UNSIGNED NULL,
+  completed_at INT UNSIGNED NULL,
+  npc_index INT NULL,
+  npc_name VARCHAR(64) NULL,
+  INDEX idx_identifier_charid (identifier, charid),
+  INDEX idx_quest_id (quest_id),
+  INDEX idx_status (status),
+  INDEX idx_created_at (created_at)
+);
 
-Exemplo de nova missão:
-
-```lua
-local Quest = {}
-
-Quest.id = 2
-Quest.name = "Coleta de Ervas"
-Quest.description = "Colete 5 ervas medicinais"
-
-Quest.requirements = {
-    item = "herb_medicine",
-    amount = 5
-}
-
-Quest.rewards = {
-    money = 75,
-    xp = 150,
-    items = {
-        {name = "health_potion", amount = 2}
-    }
-}
-
--- Implementar funções necessárias...
-
-return Quest
+CREATE TABLE IF NOT EXISTS quest_diarias_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  identifier VARCHAR(50) NOT NULL,
+  charid INT NOT NULL,
+  quest_id INT NOT NULL,
+  completed_at INT UNSIGNED,
+  rewards_given TEXT,
+  npc_index INT NULL,
+  npc_name VARCHAR(64) NULL,
+  INDEX idx_identifier_charid (identifier, charid),
+  INDEX idx_quest_id (quest_id),
+  INDEX idx_completed_at (completed_at)
+);
 ```
 
-## 🐛 Debug
+### Migração (se já existir com TIMESTAMP)
+```sql
+ALTER TABLE quest_diarias 
+  MODIFY created_at INT UNSIGNED,
+  MODIFY updated_at INT UNSIGNED NULL,
+  MODIFY completed_at INT UNSIGNED NULL,
+  ADD COLUMN npc_index INT NULL,
+  ADD COLUMN npc_name VARCHAR(64) NULL;
 
-Ative `Config.DevMode = true` para ver logs detalhados:
+ALTER TABLE quest_diarias_history 
+  MODIFY completed_at INT UNSIGNED,
+  ADD COLUMN npc_index INT NULL,
+  ADD COLUMN npc_name VARCHAR(64) NULL;
+```
 
-- Carregamento de missões
-- Verificações de itens
-- Operações de banco de dados
-- Verificações de atualização
-- Status do sistema
+## Notas e Validações
+- Entregue sempre no mesmo NPC da missão; o servidor valida e registra `npc_index`/`npc_name`.
+- Missão 1: o menu exibe “Entregar Faisão” e aceita todos modelos configurados (`acceptedModels`).
+- Missão 2: entrega via inventário (`requiredItem`), sem manipulação de entidade no cliente.
+- Textos são lidos de `Quest.Config.texts` para mensagens coerentes.
+- `Config.MoreOne = false` limita a 1 missão por dia (controle via histórico).
 
-## 📞 Suporte
+## Dicas de Desenvolvimento
+- Ative `Config.DevMode` para logs úteis (carregamento de quests, hashes de modelos não aceitos, etc.).
+- Use `/quest_test` para validar rapidamente o fluxo da missão ativa.
 
-- **Desenvolvedor**: FTx3g
-- **Repositório**: https://github.com/FireGames-Developers/quest_diarias
-- **Versão**: 2.1.0
+## Suporte
+- Repositório: https://github.com/FireGames-Developers/quest_diarias
+- Versão: 2.1.0
 
-## 📝 Changelog
-
-### v2.0.0
-- ✅ Reestruturação completa do código
-- ✅ Sistema modular implementado
-- ✅ Inicialização automática do banco de dados
-- ✅ Sistema de auto-atualização via GitHub
-- ✅ Comandos administrativos expandidos
-- ✅ Sistema de backup automático
-- ✅ Melhorias na documentação
-
-### v1.0.0
-- ✅ Versão inicial do sistema
-- ✅ Missão básica de caça ao faisão
-- ✅ Sistema de recompensas
-- ✅ Integração com VORP
+## Histórico (resumo)
+- v2.1.0: textos claros de entrega, rótulo “Entregar Faisão” no menu para Missão 1, validação de proximidade/NPC, template `quest_modelo.lua`, fluxo genérico de inventário.
+- v2.0.0: reestruturação, loader seguro, auto-update, comandos consolidados.
+- v1.0.0: versão inicial e missão básica.

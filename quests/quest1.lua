@@ -15,7 +15,6 @@ Quest1.Config = {
 
     rewards = {
         money = 50,
-        xp = 100,
         items = {
             -- { item = "bread", amount = 2 }
         }
@@ -43,9 +42,9 @@ Quest1.Config = {
 
     texts = {
         start = "Vá até a área marcada e cace um faisão. Traga-o nas mãos para mim.",
-        progress = "Objetivo: cace um faisão e traga a carcaça nas mãos.",
+        progress = "Cace um faisão e traga a carcaça nas mãos.",
         complete = "Obrigada pela ajuda, estou com muita fome, vou preparar esse faisão e me alimentar",
-        alreadyCompleted = ("Você já ajudou %s hoje. Volte amanhã para novas solicitações."):format(Config.NpcName or 'NPC'),
+        alreadyCompleted = "Você já ajudou este NPC hoje. Volte amanhã para novas solicitações.",
         notDelivered = "Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome",
         deliverHint = "Entregue o faisão nas mãos para concluir a missão.",
         error = "Ocorreu um erro ao processar a missão."
@@ -75,26 +74,6 @@ function Quest1.StartQuest(source)
     return true
 end
 
--- Elegibilidade diária
-function Quest1.CanDoQuest(source, callback)
-    local VorpCore = exports.vorp_core:GetCore()
-    local User = VorpCore.getUser(source)
-    if not User then callback(false) return end
-    local Character = User.getUsedCharacter
-    if not Character then callback(false) return end
-
-    local identifier = Character.identifier
-    local charid = Character.charIdentifier
-
-    exports.oxmysql:execute(
-        'SELECT 1 FROM quest_diarias_history WHERE identifier = ? AND charid = ? AND quest_id = ? AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE() LIMIT 1',
-        {identifier, charid, Quest1.Config.id},
-        function(rows)
-            callback(not rows or #rows == 0)
-        end
-    )
-end
-
 -- Objetivos da missão (para /quest)
 function Quest1.GetObjectives(progress)
     local objectives = {}
@@ -110,7 +89,6 @@ function Quest1.GetObjectives(progress)
     if rewards then
         local items = {}
         if rewards.money and rewards.money > 0 then table.insert(items, ('$%d'):format(rewards.money)) end
-        if rewards.xp and rewards.xp > 0 then table.insert(items, ('%d XP'):format(rewards.xp)) end
         if rewards.items and #rewards.items > 0 then table.insert(items, ('%d item(ns)'):format(#rewards.items)) end
         if #items > 0 then
             table.insert(objectives, ('Recompensas: %s'):format(table.concat(items, ', ')))
@@ -120,4 +98,125 @@ function Quest1.GetObjectives(progress)
     return objectives
 end
 
-return Quest1
+-- Teste específico da missão (executado via /quest_test)
+function Quest1.RunTest(source, params)
+    local distance = (params and params.distance) or 3.0
+    local dead = (params and params.dead) ~= false -- padrão: morto
+    local payload = {
+        action = 'spawnAnimal',
+        model = 'A_C_PHEASANT_01',
+        distance = distance,
+        dead = dead
+    }
+    TriggerClientEvent('quest_diarias:runMissionTest', source, Quest1.Config.id, payload)
+end
+
+-- retorno movido para o final do arquivo para suportar cliente
+
+
+-- =========================================================================
+-- Guia de Criação de Quests (documentação)
+-- Este arquivo serve de TEMPLATE. Ideia principal:
+-- - A lógica de entrega fica dentro do arquivo da quest.
+-- - O menu chama um evento dinâmico: 'quest_diarias:quest<ID>:attemptDelivery'.
+-- - Recompensas e registro de conclusão são gerais via 'quest_diarias:completeQuest'.
+-- - Controle diário (pode ou não fazer) é CENTRAL no servidor.
+-- Como criar sua quest:
+-- 1) Copie este arquivo para 'quests/questN.lua' e ajuste Config (id, textos, objetivos).
+-- 2) Implemente o evento cliente 'quest_diarias:questN:attemptDelivery' com sua regra de entrega.
+-- 3) Se sua entrega for por inventário, pode delegar ao servidor: crie também
+--    'quest_diarias:questN:attemptDelivery' no servidor e, ao sucesso,
+--    dispare um evento cliente próprio para acionar 'completeQuest'.
+-- 4) Não implemente checagem diária aqui; o servidor decide se pode iniciar.
+-- 5) Recompensas são lidas do Config e aplicadas no servidor ao completar a missão.
+-- =========================================================================
+if not IsDuplicityVersion() then
+    -- Helpers locais para detectar e remover o item carregado nas mãos
+    local function isPedCarryingSomething(ped)
+        return Citizen.InvokeNative(0xA911EE21EDF69DAF, ped)
+    end
+    local function getFirstEntityPedIsCarrying(ped)
+        return Citizen.InvokeNative(0xD806CD2A4F2C2996, ped)
+    end
+    local function isAcceptedModel(entity, acceptedModels)
+        if not DoesEntityExist(entity) then return false end
+        local model = GetEntityModel(entity)
+        for _, name in ipairs(acceptedModels or {}) do
+            local hash = GetHashKey(name)
+            if model == hash then return true end
+        end
+        return false
+    end
+    local function deleteCarriedEntity(entity)
+        if not DoesEntityExist(entity) then return false end
+        SetEntityAsMissionEntity(entity, true, true)
+        if IsEntityAPed(entity) then
+            ClearPedTasksImmediately(entity)
+            DeletePed(entity)
+            return true
+        elseif IsEntityAnObject(entity) then
+            DeleteObject(entity)
+            return true
+        else
+            DeleteEntity(entity)
+            return true
+        end
+    end
+
+    -- Cliente: tentativa de entrega da missão 1
+    RegisterNetEvent('quest_diarias:quest1:attemptDelivery')
+    AddEventHandler('quest_diarias:quest1:attemptDelivery', function()
+        local ped = PlayerPedId()
+    
+        local function GetCurrentNpcIndex()
+            if Config.CurrentNPCIdx then return Config.CurrentNPCIdx end
+            local name = Config.CurrentNPC and Config.CurrentNPC.name
+            if name and Config.NPCs then
+                for i, npc in ipairs(Config.NPCs) do
+                    if npc.name == name then return i end
+                end
+            end
+            return nil
+        end
+        local npcIdx = GetCurrentNpcIndex()
+        local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC'
+        if not npcIdx then
+            TriggerEvent('vorp:TipBottom', ('Aproxime-se de %s para entregar o faisão.'):format(npcName), 5000)
+            return
+        end
+
+        VorpCore.Callback.TriggerAsync('quest_diarias:getDeliveryConfig', function(delivery)
+            local accepted = (delivery and delivery.acceptedModels) or {'A_C_PHEASANT_01', 'P_FOXPHEASANT01X', 'P_TAXIDERMYPHEASANT02X'}
+
+            if not Citizen.InvokeNative(0xA911EE21EDF69DAF, ped) then
+                local msg = Quest1.Config.texts and (Quest1.Config.texts.deliverHint or Quest1.Config.texts.notDelivered) or 'Você não está carregando o item certo.'
+                TriggerEvent('vorp:TipBottom', msg, 5000)
+                return
+            end
+
+            local carried = Citizen.InvokeNative(0xD806CD2A4F2C2996, ped)
+            local okModel = false
+            local carriedHash = carried and GetEntityModel(carried)
+            for _, name in ipairs(accepted) do
+                if carriedHash == GetHashKey(name) then okModel = true break end
+            end
+
+            if okModel then
+                SetEntityAsMissionEntity(carried, true, true)
+                DeleteEntity(carried)
+                local completeMsg = Quest1.Config.texts and Quest1.Config.texts.complete or ('Obrigado pela ajuda, ' .. npcName .. ' vai usar isso agora.')
+                TriggerEvent('vorp:TipBottom', completeMsg, 5000)
+                TriggerServerEvent('quest_diarias:completeQuest', Quest1.Config.id, npcIdx)
+            else
+                local notDeliveredMsg = Quest1.Config.texts and (Quest1.Config.texts.notDelivered or Quest1.Config.texts.deliverHint) or 'Modelo inválido para entrega.'
+                TriggerEvent('vorp:TipBottom', notDeliveredMsg, 5000)
+                if Config.DevMode and carriedHash then
+                    print(('[Quest1] Modelo carregado não aceito: hash %s'):format(tostring(carriedHash)))
+                end
+            end
+        end, Quest1.Config.id)
+    end)
+end
+
+-- Retorno apenas no servidor para compatibilidade com QuestManager
+if IsDuplicityVersion() then return Quest1 end

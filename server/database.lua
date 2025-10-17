@@ -229,8 +229,9 @@ function Database.UpdateQuestProgress(identifier, charid, questId, progress, cal
         ['@progress'] = json.encode(progress),
         ['@updated_at'] = os.time()
     }, function(affectedRows)
+        local affected = type(affectedRows) == 'number' and affectedRows or ((type(affectedRows) == 'table' and (affectedRows.affectedRows or affectedRows.changedRows or affectedRows.insertId)) or 0)
         if callback then
-            callback(affectedRows and affectedRows > 0)
+            callback(affected > 0)
         end
     end)
 end
@@ -245,8 +246,9 @@ function Database.CompleteQuest(identifier, charid, questId, callback)
         ['@completed_at'] = os.time(),
         ['@active_status'] = 'active'
     }, function(affectedRows)
+        local affected = type(affectedRows) == 'number' and affectedRows or ((type(affectedRows) == 'table' and (affectedRows.affectedRows or affectedRows.changedRows or affectedRows.insertId)) or 0)
         if callback then
-            callback(affectedRows and affectedRows > 0)
+            callback(affected > 0)
         end
     end)
 end
@@ -261,8 +263,9 @@ function Database.FailQuest(identifier, charid, questId, callback)
         ['@updated_at'] = os.time(),
         ['@active_status'] = 'active'
     }, function(affectedRows)
+        local affected = type(affectedRows) == 'number' and affectedRows or ((type(affectedRows) == 'table' and (affectedRows.affectedRows or affectedRows.changedRows or affectedRows.insertId)) or 0)
         if callback then
-            callback(affectedRows and affectedRows > 0)
+            callback(affected > 0)
         end
     end)
 end

@@ -39,7 +39,7 @@ RegisterCommand('quest', function(source, args, raw)
         ['@status'] = 'active'
     }, function(rows)
         if not rows or #rows == 0 then
-            VorpCore.NotifyRightTip(_source, 'Você não possui missão ativa no momento.', 5000)
+            TriggerClientEvent('vorp:TipBottom', _source, 'Você não possui missão ativa no momento.', 5000)
             return
         end
 
@@ -53,31 +53,24 @@ RegisterCommand('quest', function(source, args, raw)
 
         local qm = LoadQuestManager()
         if not qm then
-            VorpCore.NotifyRightTip(_source, 'Erro ao carregar gerenciador de missões.', 5000)
+            TriggerClientEvent('vorp:TipBottom', _source, 'Erro ao carregar gerenciador de missões.', 5000)
             return
         end
 
         local quest = qm.GetQuest(questId)
         if not quest then
-            VorpCore.NotifyRightTip(_source, ('Missão %s não encontrada.'):format(tostring(questId)), 5000)
+            TriggerClientEvent('vorp:TipBottom', _source, ('Missão %s não encontrada.'):format(tostring(questId)), 5000)
             return
         end
 
-        -- Construir objetivos a partir da missão
-        local lines = {}
-        if quest.GetObjectives then
-            lines = quest.GetObjectives(progress)
-        else
-            local info = qm.GetQuestInfo(questId)
-            table.insert(lines, ('Missão: %s'):format(info and info.name or ('ID '..tostring(questId))))
-            if info and info.description then table.insert(lines, info.description) end
-            if info and info.texts and info.texts.progress then table.insert(lines, info.texts.progress) end
-        end
-
-        for _, line in ipairs(lines) do
-            VorpCore.NotifyRightTip(_source, line, 3500)
-            Wait(250)
-        end
+        -- Resumo conciso da missão
+        local info = qm.GetQuestInfo(questId)
+        local name = info and info.name or ('Missão '..tostring(questId))
+        local desc = info and info.description or ''
+        local status = 'Pendente'
+        if progress and progress.delivered then status = 'Concluída' end
+        local summary = ('%s\n%s\nStatus: %s'):format(name, desc, status)
+        TriggerClientEvent('vorp:TipBottom', _source, summary, 6000)
     end)
 end, false)
 
@@ -104,13 +97,13 @@ RegisterCommand('quest_list', function(source, args, rawCommand)
         ['@charid'] = charid
     }, function(result)
         if result and #result > 0 then
-            VorpCore.NotifyRightTip(_source, "Suas quests:", 2000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Suas quests:", 2000)
             for _, quest in pairs(result) do
                 local status = quest.status == 'active' and "Ativa" or "Completada"
-                VorpCore.NotifyRightTip(_source, quest.quest_id .. " - " .. status, 3000)
+                TriggerClientEvent('vorp:TipBottom', _source, quest.quest_id .. " - " .. status, 3000)
             end
         else
-            VorpCore.NotifyRightTip(_source, "Você não possui quests", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Você não possui quests", 4000)
         end
     end)
 end, false)
@@ -138,7 +131,7 @@ local function ExecuteQuestReset(_source, identifier, charid, questId)
             else
                 msg = ('Nenhuma entrada de histórico de hoje para missão %s.'):format(tostring(questId))
             end
-            VorpCore.NotifyRightTip(_source, msg, 6000)
+            TriggerClientEvent('vorp:TipBottom', _source, msg, 6000)
         end)
     end)
 end
@@ -168,7 +161,7 @@ RegisterCommand('quest_reset', function(source, args, rawCommand)
                 questId = tonumber(rows[1].quest_id)
             end
             if not questId then
-                VorpCore.NotifyRightTip(_source, 'Nenhuma missão completada hoje encontrada para reset', 5000)
+                TriggerClientEvent('vorp:TipBottom', _source, 'Nenhuma missão completada hoje encontrada para reset', 5000)
                 return
             end
             ExecuteQuestReset(_source, identifier, charid, questId)
@@ -190,7 +183,7 @@ RegisterCommand('quest_test', function(source, args, raw)
     end
 
     if not IsPlayerAceAllowed(_source, 'command.quest_test') then
-        VorpCore.NotifyRightTip(_source, 'Você não tem permissão para este comando', 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, 'Você não tem permissão para este comando', 4000)
         return
     end
 
@@ -200,6 +193,24 @@ RegisterCommand('quest_test', function(source, args, raw)
     if not Character then return end
 
     local distance = tonumber(args and args[1]) or 3.0
-    TriggerClientEvent('quest_diarias:testMission:spawnPheasant', _source, distance, true)
-    VorpCore.NotifyRightTip(_source, ('Faisão morto será spawnado a %.1fm à frente'):format(distance), 4000)
+
+    local qm = LoadQuestManager()
+    if not qm then
+        TriggerClientEvent('vorp:TipBottom', _source, 'Erro ao carregar gerenciador de missões.', 4000)
+        return
+    end
+
+    local questId = tonumber(args and args[2]) or (Config and Config.mission) or 1
+    local quest = qm.GetQuest(questId)
+    if not quest then
+        TriggerClientEvent('vorp:TipBottom', _source, ('Missão %s não encontrada para teste.'):format(tostring(questId)), 4000)
+        return
+    end
+
+    if quest.RunTest and type(quest.RunTest) == 'function' then
+        quest.RunTest(_source, { distance = distance, dead = true })
+        TriggerClientEvent('vorp:TipBottom', _source, ('Teste da missão %d executado (distância %.1fm)'):format(questId, distance), 4000)
+    else
+        TriggerClientEvent('vorp:TipBottom', _source, 'Esta missão não possui rotina de teste configurada.', 4000)
+    end
 end, false)
