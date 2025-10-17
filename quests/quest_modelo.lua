@@ -72,21 +72,22 @@ Quest.Events = {
 
 -- Iniciar missão: cria blip (se configurado) e mostra instruções
 function Quest.StartQuest(source)
-    local area = Quest.Config.markers and Quest.Config.markers.huntingArea
-    if area then
+    local markers = Quest.Config.markers
+    if markers and markers.huntingArea then
+        local area = markers.huntingArea
         local blipData = {
             x = area.coords.x,
             y = area.coords.y,
             z = area.coords.z,
-            sprite = Config.blipsprite or (area.blip and area.blip.sprite) or -1282792512,
-            color = (area.blip and area.blip.color) or 3,
-            name = (area.blip and area.blip.name) or Quest.Config.name
+            sprite = (area.blip and area.blip.sprite) or Config.blipsprite,
+            color = area.blip and area.blip.color,
+            name = (area.blip and area.blip.name) or (Quest.Config.name or 'Missão'),
+            radius = area.radius,
+            areaStyle = (area.blip and area.blip.sprite) or -1282792512
         }
         TriggerClientEvent('quest_diarias:createQuestBlip', source, Quest.Config.id, blipData)
     end
-    if Quest.Config.texts and Quest.Config.texts.start then
-        TriggerClientEvent('vorp:TipBottom', source, Quest.Config.texts.start, 6000)
-    end
+    TriggerClientEvent('vorp:TipBottom', source, Quest.Config.texts.start or 'Missão iniciada! Verifique o mapa.', 6000)
     return true
 end
 

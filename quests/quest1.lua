@@ -67,7 +67,9 @@ function Quest1.StartQuest(source)
         z = area.coords.z,
         sprite = Config.blipsprite,
         color = area.blip.color,
-        name = area.blip.name
+        name = area.blip.name,
+        radius = area.radius,
+        areaStyle = area.blip.sprite
     }
     TriggerClientEvent('quest_diarias:createQuestBlip', source, Quest1.Config.id, blipData)
     TriggerClientEvent('vorp:TipBottom', source, Quest1.Config.texts.start, 6000)

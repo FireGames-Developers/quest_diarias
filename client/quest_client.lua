@@ -67,19 +67,33 @@ AddEventHandler('quest_diarias:createQuestBlip', function(questId, blipData)
     if not questBlips[questId] then
         questBlips[questId] = {}
     end
-    
-    local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, blipData.x, blipData.y, blipData.z)
-    SetBlipSprite(blip, blipData.sprite or Config.blipsprite, true)
-    Citizen.InvokeNative(0x9CB1A1623062F402, blip, blipData.name or 'Missão')
-    
+
+    -- Blip pontual (ícone no centro da área)
+    local pointBlip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, blipData.x, blipData.y, blipData.z)
+    SetBlipSprite(pointBlip, blipData.sprite or Config.blipsprite, true)
+    Citizen.InvokeNative(0x9CB1A1623062F402, pointBlip, blipData.name or 'Missão')
     if blipData.color then
-        SetBlipColor(blip, blipData.color)
+        SetBlipColor(pointBlip, blipData.color)
     end
-    
-    table.insert(questBlips[questId], blip)
-    
+    table.insert(questBlips[questId], pointBlip)
+
+    -- Mancha de área (círculo visível no mapa) quando radius for informado
+    if blipData.radius and type(blipData.radius) == 'number' and blipData.radius > 0 then
+        local areaStyle = blipData.areaStyle or blipData.sprite or -1282792512
+        local radiusBlip = Citizen.InvokeNative(0x45f13b7e0a15c880, areaStyle, blipData.x, blipData.y, blipData.z, blipData.radius)
+        -- Nome e cor (alguns estilos permitem cor; manteremos tentativa amigável)
+        Citizen.InvokeNative(0x9CB1A1623062F402, radiusBlip, blipData.name or 'Área da Missão')
+        if blipData.areaColor or blipData.color then
+            SetBlipColor(radiusBlip, blipData.areaColor or blipData.color)
+        end
+        table.insert(questBlips[questId], radiusBlip)
+    end
+
     if Config.DevMode then
-        print(('[Quest Client] Blip criado para quest %d'):format(questId))
+        print(('[Quest Client] Blips criados para quest %d (ponto%s)'):format(
+            questId,
+            blipData.radius and ' + área' or ''
+        ))
     end
 end)
 
