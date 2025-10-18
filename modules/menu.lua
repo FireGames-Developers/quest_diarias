@@ -30,6 +30,7 @@ end
 
 ----------------- MENU ----------------------
 function CloseStore()
+    TriggerEvent('quest_diarias:playNpcSpeechConfigured', 'closeMenu')
     MenuData.CloseAll()
     ClearPedTasks(PlayerPedId())
     DisplayRadar(true)
@@ -55,6 +56,8 @@ function OpenStore()
     }
     inmenu = true
 
+    TriggerEvent('quest_diarias:playNpcSpeechConfigured', 'openMenu')
+
     MenuData.Open('default', GetCurrentResourceName(), 'menuapi',
         {
             title    = Config.Name,
@@ -72,6 +75,7 @@ function OpenStore()
                 DebugPrint("Opção Entregar selecionada")
                 -- Aciona evento específico da missão atual (dinâmico por ID)
                 local evt = ('quest_diarias:quest%d:attemptDelivery'):format(Config.mission)
+                DebugPrint(("Disparando evento: %s"):format(evt))
                 TriggerEvent(evt)
                 CloseStore()
             end

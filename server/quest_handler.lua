@@ -63,14 +63,14 @@ AddEventHandler('quest_diarias:startQuest', function(questId, npcIndex)
     -- Carrega o QuestManager se necessário
     local questManager = LoadQuestManager()
     if not questManager then
-        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 5000)
         return
     end
     
     -- Verifica se a quest existe
     local quest = questManager.GetQuest(questId)
     if not quest then
-        TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada", 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada", 5000)
         return
     end
     
@@ -79,7 +79,7 @@ AddEventHandler('quest_diarias:startQuest', function(questId, npcIndex)
     local charid = Character.charIdentifier
 
     -- Cancela automaticamente qualquer missão ativa de dias anteriores
-    MySQL.Async.execute('UPDATE quest_diarias SET status = @failed WHERE identifier = @identifier AND charid = @charid AND status = @status AND DATE(FROM_UNIXTIME(created_at)) < CURDATE()', {
+    MySQL.Async.execute('UPDATE quest_diarias SET status = @failed WHERE identifier = @identifier AND charid = @charid AND status = @status AND DATE(created_at) < CURDATE()', {
         ['@identifier'] = identifier,
         ['@charid'] = charid,
         ['@status'] = 'active',
@@ -97,29 +97,65 @@ AddEventHandler('quest_diarias:startQuest', function(questId, npcIndex)
             return
         end
         
-        -- Inicia a nova quest
-        local npcName = (Config.NPCs and npcIndex and Config.NPCs[npcIndex] and Config.NPCs[npcIndex].name) or nil
-        MySQL.Async.execute('INSERT INTO quest_diarias (identifier, charid, quest_id, status, progress, created_at, npc_index, npc_name) VALUES (@identifier, @charid, @quest_id, @status, @progress, @created_at, @npc_index, @npc_name)', {
-            ['@identifier'] = identifier,
-            ['@charid'] = charid,
-            ['@quest_id'] = questId,
-            ['@status'] = 'active',
-            ['@progress'] = json.encode({}),
-            ['@created_at'] = os.time(),
-            ['@npc_index'] = npcIndex,
-            ['@npc_name'] = npcName
-        }, function(insertId)
-            if insertId then
-                local qname = (quest.Config and quest.Config.name) or (quest.name or ('Missão '..tostring(questId)))
-                TriggerClientEvent('vorp:TipBottom', _source, "Missão '" .. qname .. "' iniciada!", 4000)
-                if quest.StartQuest and type(quest.StartQuest) == 'function' then
-                    quest.StartQuest(_source)
+        -- Bloqueio diário: se Config.MoreOne for falso, impede iniciar nova missão se já completou alguma hoje
+        if not Config.MoreOne then
+            MySQL.Async.fetchAll('SELECT 1 FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE() LIMIT 1', {
+                ['@identifier'] = identifier,
+                ['@charid'] = charid
+            }, function(rows)
+                if rows and #rows > 0 then
+                    TriggerClientEvent('vorp:TipBottom', _source, 'Você já completou uma missão hoje. Volte amanhã.', 5000)
+                    return
                 end
-                TriggerClientEvent('quest_diarias:questStarted', _source, questId)
-            else
-                TriggerClientEvent('vorp:TipBottom', _source, "Erro ao iniciar quest", 4000)
-            end
-        end)
+                -- Inicia a nova quest
+                local npcName = (Config.NPCs and npcIndex and Config.NPCs[npcIndex] and Config.NPCs[npcIndex].name) or nil
+                MySQL.Async.execute('INSERT INTO quest_diarias (identifier, charid, quest_id, status, progress, created_at, npc_index, npc_name) VALUES (@identifier, @charid, @quest_id, @status, @progress, @created_at, @npc_index, @npc_name)', {
+                    ['@identifier'] = identifier,
+                    ['@charid'] = charid,
+                    ['@quest_id'] = questId,
+                    ['@status'] = 'active',
+                    ['@progress'] = json.encode({}),
+                    ['@created_at'] = os.time(),
+                    ['@npc_index'] = npcIndex,
+                    ['@npc_name'] = npcName
+                }, function(insertId)
+                    if insertId then
+                        local qname = (quest.Config and quest.Config.name) or (quest.name or ('Missão '..tostring(questId)))
+                        TriggerClientEvent('vorp:TipBottom', _source, "Missão '" .. qname .. "' iniciada!", 5000)
+                        if quest.StartQuest and type(quest.StartQuest) == 'function' then
+                            quest.StartQuest(_source, npcName)
+                        end
+                        TriggerClientEvent('quest_diarias:questStarted', _source, questId)
+                    else
+                        TriggerClientEvent('vorp:TipBottom', _source, "Erro ao iniciar quest", 5000)
+                    end
+                end)
+            end)
+        else
+            -- Inicia a nova quest (sem bloqueio diário)
+            local npcName = (Config.NPCs and npcIndex and Config.NPCs[npcIndex] and Config.NPCs[npcIndex].name) or nil
+            MySQL.Async.execute('INSERT INTO quest_diarias (identifier, charid, quest_id, status, progress, created_at, npc_index, npc_name) VALUES (@identifier, @charid, @quest_id, @status, @progress, @created_at, @npc_index, @npc_name)', {
+                ['@identifier'] = identifier,
+                ['@charid'] = charid,
+                ['@quest_id'] = questId,
+                ['@status'] = 'active',
+                ['@progress'] = json.encode({}),
+                ['@created_at'] = os.time(),
+                ['@npc_index'] = npcIndex,
+                ['@npc_name'] = npcName
+            }, function(insertId)
+                if insertId then
+                    local qname = (quest.Config and quest.Config.name) or (quest.name or ('Missão '..tostring(questId)))
+                    TriggerClientEvent('vorp:TipBottom', _source, "Missão '" .. qname .. "' iniciada!", 5000)
+                    if quest.StartQuest and type(quest.StartQuest) == 'function' then
+                        quest.StartQuest(_source, npcName)
+                    end
+                    TriggerClientEvent('quest_diarias:questStarted', _source, questId)
+                else
+                    TriggerClientEvent('vorp:TipBottom', _source, "Erro ao iniciar quest", 5000)
+                end
+            end)
+        end
     end)
 end)
 
@@ -175,7 +211,7 @@ AddEventHandler('quest_diarias:completeQuest', function(questId, npcIndex)
     -- Carrega o QuestManager se necessário
     local questManager = LoadQuestManager()
     if not questManager then
-        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 5000)
         return
     end
     
@@ -190,7 +226,7 @@ AddEventHandler('quest_diarias:completeQuest', function(questId, npcIndex)
         ['@status'] = 'active'
     }, function(result)
         if not result or #result == 0 then
-            TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada ou não está ativa", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada ou não está ativa", 5000)
             return
         end
         
@@ -198,7 +234,7 @@ AddEventHandler('quest_diarias:completeQuest', function(questId, npcIndex)
         local quest = questManager.GetQuest(questId)
         
         if not quest then
-            TriggerClientEvent('vorp:TipBottom', _source, "Configuração de missão não encontrada", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Configuração de missão não encontrada", 5000)
             return
         end
         
@@ -268,10 +304,10 @@ AddEventHandler('quest_diarias:completeQuest', function(questId, npcIndex)
                 })
                 
                 local qname = (quest.Config and quest.Config.name) or (quest.name or ('Missão '..tostring(questId)))
-                TriggerClientEvent('vorp:TipBottom', _source, "Missão '" .. qname .. "' completada!", 4000)
+                TriggerClientEvent('vorp:TipBottom', _source, "Missão '" .. qname .. "' completada!", 5000)
                 TriggerClientEvent('quest_diarias:questCompleted', _source, questId, rewards)
             else
-                TriggerClientEvent('vorp:TipBottom', _source, "Erro ao completar quest", 4000)
+                TriggerClientEvent('vorp:TipBottom', _source, "Erro ao completar quest", 5000)
             end
         end)
     end)
@@ -296,7 +332,7 @@ AddEventHandler('quest_diarias:canDoQuest', function(questId)
     end
 
     -- Regra geral: se já completou QUALQUER missão hoje, não pode iniciar outra
-    MySQL.Async.fetchAll('SELECT 1 FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE() LIMIT 1', {
+    MySQL.Async.fetchAll('SELECT 1 FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(completed_at) = CURDATE() LIMIT 1', {
         ['@identifier'] = identifier,
         ['@charid'] = charid
     }, function(rows)
@@ -357,7 +393,7 @@ AddEventHandler('quest_diarias:attemptDeliveryInventory', function(questId, npcI
 
     local questManager = LoadQuestManager()
     if not questManager then
-        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, "Erro interno do sistema de quests", 5000)
         return
     end
 
@@ -371,7 +407,7 @@ AddEventHandler('quest_diarias:attemptDeliveryInventory', function(questId, npcI
         ['@status'] = 'active'
     }, function(result)
         if not result or #result == 0 then
-            TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada ou não está ativa", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Missão não encontrada ou não está ativa", 5000)
             return
         end
 
@@ -395,7 +431,7 @@ AddEventHandler('quest_diarias:attemptDeliveryInventory', function(questId, npcI
 
         local quest = questManager.GetQuest(questId)
         if not quest or not quest.Config or not quest.Config.delivery or not quest.Config.delivery.requiredItem then
-            TriggerClientEvent('vorp:TipBottom', _source, "Configuração de entrega inválida.", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Configuração de entrega inválida.", 5000)
             return
         end
 
@@ -412,7 +448,7 @@ AddEventHandler('quest_diarias:attemptDeliveryInventory', function(questId, npcI
         if ok then
             TriggerClientEvent('quest_diarias:inventoryDeliverySuccess', _source, questId)
         else
-            TriggerClientEvent('vorp:TipBottom', _source, "Não foi possível retirar a maçã do inventário.", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Não foi possível retirar a maçã do inventário.", 5000)
         end
     end)
 end)
@@ -439,3 +475,37 @@ end)
 if Config.DevMode then
     print('[Quest Handler] Sistema de handler de quests inicializado')
 end
+
+VorpCore.Callback.Register('quest_diarias:validateNpcForDelivery', function(source, cb, questId, npcIndex)
+    local User = VorpCore.getUser(source)
+    if not User then cb(false) return end
+    local Character = User.getUsedCharacter
+    if not Character then cb(false) return end
+
+    local identifier = Character.identifier
+    local charid = Character.charIdentifier
+
+    MySQL.Async.fetchAll('SELECT npc_index FROM quest_diarias WHERE identifier = @identifier AND charid = @charid AND quest_id = @quest_id AND status = @status', {
+        ['@identifier'] = identifier,
+        ['@charid'] = charid,
+        ['@quest_id'] = questId,
+        ['@status'] = 'active'
+    }, function(result)
+        if not result or #result == 0 then cb(false) return end
+        local recordedNpcIndex = result[1].npc_index
+        if recordedNpcIndex == nil then
+            local npcName = (Config.NPCs and npcIndex and Config.NPCs[npcIndex] and Config.NPCs[npcIndex].name) or nil
+            MySQL.Async.execute('UPDATE quest_diarias SET npc_index = @npc_index, npc_name = @npc_name WHERE identifier = @identifier AND charid = @charid AND quest_id = @quest_id AND status = @status', {
+                ['@npc_index'] = npcIndex,
+                ['@npc_name'] = npcName,
+                ['@identifier'] = identifier,
+                ['@charid'] = charid,
+                ['@quest_id'] = questId,
+                ['@status'] = 'active'
+            })
+            cb(true)
+            return
+        end
+        cb(tonumber(recordedNpcIndex) == tonumber(npcIndex))
+    end)
+end)

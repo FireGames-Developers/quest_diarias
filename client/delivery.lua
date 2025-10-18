@@ -42,10 +42,23 @@ end
 -- Entrega genérica de missão atual
 RegisterNetEvent('quest_diarias:attemptDelivery')
 AddEventHandler('quest_diarias:attemptDelivery', function(questId)
+    DebugPrint(('[Delivery] attemptDelivery acionado (questId=%s)'):format(tostring(questId)))
     local ped = PlayerPedId()
+    -- Feedback imediato para o jogador ao iniciar a validação de entrega
+    TriggerEvent('vorp:TipBottom', 'Validando entrega...', 1500)
+    
     VorpCore.Callback.TriggerAsync('quest_diarias:getQuestInfo', function(questInfo)
+        DebugPrint('[Delivery] getQuestInfo retornou, seguindo com validações')
+        -- Textos padrão caso o questInfo ou questInfo.texts não estejam disponíveis
+        local defaultTexts = {
+            notDelivered = 'Sem o item correto eu não consigo fazer nada. Volte com o faisão nas mãos.',
+            deliverHint  = 'Traga o faisão nas mãos e fale comigo para entregar.',
+            complete     = 'Entrega concluída com sucesso!',
+            error        = 'Não foi possível validar a entrega. Tente novamente.'
+        }
+        local texts = (questInfo and questInfo.texts) or defaultTexts
         local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC'
-        local texts = questInfo and questInfo.texts or {}
+          -- texts already defined above with fallback
 
         local function GetCurrentNpcIndex()
             if Config.CurrentNPCIdx then return Config.CurrentNPCIdx end
@@ -60,35 +73,68 @@ AddEventHandler('quest_diarias:attemptDelivery', function(questId)
         local npcIdx = GetCurrentNpcIndex()
 
         VorpCore.Callback.TriggerAsync('quest_diarias:getDeliveryConfig', function(delivery)
+            DebugPrint('[Delivery] getDeliveryConfig retornou')
             -- Missão 2: entrega via inventário (requiredItem)
             if delivery and delivery.requiredItem then
+                DebugPrint('[Delivery] Entrega por inventário detectada, acionando servidor')
                 TriggerServerEvent('quest_diarias:attemptDeliveryInventory', questId, npcIdx)
                 return
             end
 
             -- Missão 1: entrega segurando a carcaça (modelos aceitos)
             if not isPedCarryingSomething(ped) then
-                TriggerEvent('vorp:TipBottom', texts and texts.notDelivered or 'Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome', 5000)
+                DebugPrint('[Delivery] Jogador não está carregando nada')
+                local msg = (texts and (texts.notDelivered or texts.deliverHint))
+                if msg and npcName then msg = msg:gsub('{npc}', npcName) end
+                if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
+                TriggerEvent('quest_diarias:playNpcAnimConfigured', 'notReady')
+                TriggerEvent('quest_diarias:playNpcSpeechConfigured', 'notReady')
                 return
             end
 
-            local accepted = (delivery and delivery.acceptedModels) or {'A_C_PHEASANT_01', 'P_FOXPHEASANT01X'}
+            local accepted = (delivery and delivery.acceptedModels) or {'A_C_PHEASANT_01', 'P_FOXPHEASANT01X', 'P_TAXIDERMYPHEASANT02X'}
             local carried = getFirstEntityPedIsCarrying(ped)
 
             if carried and isAcceptedModel(carried, accepted) then
-                local ok = deleteCarriedEntity(carried)
-                if ok then
-                    TriggerEvent('vorp:TipBottom', texts and texts.complete or ('Obrigado pela ajuda, ' .. npcName .. ' vai usar isso agora.'), 5000)
-                    TriggerServerEvent('quest_diarias:completeQuest', questId, npcIdx)
-                else
-                    TriggerEvent('vorp:TipBottom', texts and texts.error or 'Falha ao entregar o item.', 4000)
-                end
+                DebugPrint('[Delivery] Modelo carregado é aceito, validando NPC')
+                VorpCore.Callback.TriggerAsync('quest_diarias:validateNpcForDelivery', function(valid)
+                    DebugPrint(('[Delivery] validateNpcForDelivery=%s'):format(tostring(valid)))
+                    if not valid then
+                        local msg = (texts and (texts.deliverHint or texts.notDelivered))
+                        if msg and npcName then msg = msg:gsub('{npc}', npcName) end
+                        if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
+                        TriggerEvent('quest_diarias:playNpcAnimConfigured', 'notReady')
+                        TriggerEvent('quest_diarias:playNpcSpeechConfigured', 'notReady')
+                        return
+                    end
+
+                    local ok = deleteCarriedEntity(carried)
+                    DebugPrint(('[Delivery] deleteCarriedEntity=%s'):format(tostring(ok)))
+                    if ok then
+                        local msg = texts and texts.complete
+                        if msg and npcName then msg = msg:gsub('{npc}', npcName) end
+                        if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
+                        TriggerServerEvent('quest_diarias:completeQuest', questId, npcIdx)
+                    else
+                        local msg = texts and texts.error
+                        if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
+                    end
+                end, questId, npcIdx)
             else
-                TriggerEvent('vorp:TipBottom', texts and texts.notDelivered or 'Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome', 5000)
-            end
+                local modelHash = carried and GetEntityModel(carried)
+                if Config.DevMode and modelHash then
+                    print(('[Delivery] Modelo carregado não aceito: hash %s'):format(tostring(modelHash)))
+                end
+                local msg = (texts and (texts.notDelivered or texts.deliverHint))
+                if msg and npcName then msg = msg:gsub('{npc}', npcName) end
+                if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
+                TriggerEvent('quest_diarias:playNpcAnimConfigured', 'notReady')
+                TriggerEvent('quest_diarias:playNpcSpeechConfigured', 'notReady')
+
+                end
         end, questId)
-    end, questId)
-end)
+    end, questId) -- getQuestInfo
+end) -- attemptDelivery
 
 -- Sucesso de entrega via inventário: conclui missão e mostra feedback
 RegisterNetEvent('quest_diarias:inventoryDeliverySuccess')
@@ -107,9 +153,10 @@ AddEventHandler('quest_diarias:inventoryDeliverySuccess', function(questId)
 
     VorpCore.Callback.TriggerAsync('quest_diarias:getQuestInfo', function(questInfo)
         local texts = questInfo and questInfo.texts or {}
-        if texts and texts.complete then
-            TriggerEvent('vorp:TipBottom', texts.complete, 5000)
-        end
+        local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or nil
+        local msg = texts and texts.complete
+        if msg and npcName then msg = msg:gsub('{npc}', npcName) end
+        if msg then TriggerEvent('vorp:TipBottom', msg, 5000) end
         TriggerServerEvent('quest_diarias:completeQuest', questId, npcIdx)
     end, questId)
 end)

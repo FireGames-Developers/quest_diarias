@@ -27,8 +27,8 @@ Quest2.Config = {
 
     texts = {
         start = "Eu estou desejando algo doce... Traga uma maçã bem vermelha pra mim!",
-        progress = "Procure uma maçã e traga para a Karine.",
-        deliverHint = "Abra o menu da Karine e escolha Entregar Itens com a maçã no inventário.",
+        progress = "Procure uma maçã e traga para {npc}.",
+        deliverHint = "Abra o menu de {npc} e escolha Entregar Itens com a maçã no inventário.",
         complete = "Uau, perfeita! Essa maçã está deliciosa. Aqui está sua recompensa!",
         alreadyCompleted = "Você já ajudou este NPC hoje. Volte amanhã para novas missões.",
         notDelivered = "Você ainda não tem a maçã. Volte quando conseguir uma.",
@@ -44,8 +44,11 @@ Quest2.Events = {
 }
 
 -- Iniciar missão
-function Quest2.StartQuest(source)
-    TriggerClientEvent('vorp:TipBottom', source, Quest2.Config.texts.start, 6000)
+function Quest2.StartQuest(source, npcName)
+    local startText = Quest2.Config.texts.start
+    local name = npcName or 'NPC'
+    startText = startText:gsub('{npc}', name)
+    TriggerClientEvent('vorp:TipBottom', source, startText, 5000)
     return true
 end
 
@@ -82,13 +85,13 @@ function Quest2.RunTest(source, params)
     if canCarry then
         exports.vorp_inventory:addItem(source, itemName, 1, nil, function(success)
             if success then
-                TriggerClientEvent('vorp:TipBottom', source, 'Você recebeu uma maçã para teste. Entregue à Karine.', 6000)
+                TriggerClientEvent('vorp:TipBottom', source, 'Você recebeu uma maçã para teste. Entregue à Karine.', 5000)
             else
-                TriggerClientEvent('vorp:TipBottom', source, 'Não foi possível adicionar a maçã ao seu inventário.', 6000)
+                TriggerClientEvent('vorp:TipBottom', source, 'Não foi possível adicionar a maçã ao seu inventário.', 5000)
             end
         end)
     else
-        TriggerClientEvent('vorp:TipBottom', source, 'Seu inventário está cheio. Faça espaço para receber a maçã.', 6000)
+        TriggerClientEvent('vorp:TipBottom', source, 'Seu inventário está cheio. Faça espaço para receber a maçã.', 5000)
     end
 end
 
@@ -156,7 +159,7 @@ if IsDuplicityVersion() then
             ['@status'] = 'active'
         }, function(rows)
             if not rows or #rows == 0 then
-                TriggerClientEvent('vorp:TipBottom', _source, 'Missão não encontrada ou não está ativa', 4000)
+                TriggerClientEvent('vorp:TipBottom', _source, 'Missão não encontrada ou não está ativa', 5000)
                 return
             end
 
@@ -187,7 +190,7 @@ if IsDuplicityVersion() then
             if ok then
                 TriggerClientEvent('quest_diarias:quest2:deliverySuccess', _source)
             else
-                TriggerClientEvent('vorp:TipBottom', _source, 'Não foi possível retirar a maçã do inventário.', 4000)
+                TriggerClientEvent('vorp:TipBottom', _source, 'Não foi possível retirar a maçã do inventário.', 5000)
             end
         end)
     end)

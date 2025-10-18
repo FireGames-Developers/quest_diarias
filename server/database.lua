@@ -28,7 +28,9 @@ Database.tables = {
             "progress TEXT",
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-            "completed_at TIMESTAMP NULL"
+            "completed_at TIMESTAMP NULL",
+            "npc_index INT NULL",
+            "npc_name VARCHAR(100) NULL"
         },
         indexes = {
             "INDEX idx_identifier_charid (identifier, charid)",
@@ -45,7 +47,9 @@ Database.tables = {
             "charid INT NOT NULL",
             "quest_id VARCHAR(100) NOT NULL",
             "completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "rewards_given TEXT"
+            "rewards_given TEXT",
+            "npc_index INT NULL",
+            "npc_name VARCHAR(100) NULL"
         },
         indexes = {
             "INDEX idx_identifier_charid (identifier, charid)",
@@ -138,21 +142,44 @@ end
 -- Função para inicializar todas as tabelas
 function Database.Initialize()
     print("^3[QUEST DIÁRIAS]^0 Inicializando banco de dados...")
-    
-    -- Prepara adaptador caso mysql-async não esteja disponível
     Database.SetupAdapter()
-
-    -- Verifica se o MySQL (ou adaptador oxmysql) está disponível
     if not MySQL or not MySQL.Async then
         print("^1[QUEST DIÁRIAS]^0 ✗ Erro: MySQL/oxmysql não está disponível")
         return false
     end
-    
-    -- Cria todas as tabelas definidas
+
+    -- Definição local: cria colunas ausentes automaticamente
+    local function ensureColumns(tableName, colsDef)
+        local schemaQuery = [[
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table
+        ]]
+        MySQL.Async.fetchAll(schemaQuery, { ['@table'] = tableName }, function(result)
+            local existing = {}
+            for _, row in ipairs(result or {}) do
+                existing[row.COLUMN_NAME] = true
+            end
+            local alters = {}
+            for col, def in pairs(colsDef or {}) do
+                if not existing[col] then
+                    table.insert(alters, string.format("ADD COLUMN %s %s", col, def))
+                end
+            end
+            if #alters > 0 then
+                local alterStmt = string.format("ALTER TABLE %s %s", tableName, table.concat(alters, ", "))
+                MySQL.Async.execute(alterStmt, {}, function(_)
+                    print(string.format("^2[QUEST DIÁRIAS]^0 ✓ Tabela '%s' atualizada: %s", tableName, table.concat(alters, ", ")))
+                end)
+            end
+        end)
+    end
+
     for tableName, tableConfig in pairs(Database.tables) do
         Database.CreateTable(tableName, tableConfig)
     end
-    
+    -- Garantir colunas extras (npc_index, npc_name) mesmo em bases já existentes
+    ensureColumns("quest_diarias", { npc_index = "INT NULL", npc_name = "VARCHAR(100) NULL" })
+    ensureColumns("quest_diarias_history", { npc_index = "INT NULL", npc_name = "VARCHAR(100) NULL" })
     print("^2[QUEST DIÁRIAS]^0 ✓ Inicialização do banco de dados concluída")
     return true
 end

@@ -11,7 +11,8 @@ lua54 'yes'
 dependencies {
     'vorp_core',
     'vorp_menu',
-    'oxmysql'
+    'oxmysql',
+    'vorp_animations'
 }
 
 client_scripts {

@@ -17,6 +17,7 @@ Sistema modular de missões diárias com duas formas de entrega (item nas mãos 
 - `vorp_menu` (menu do NPC)
 - `vorp_inventory` (itens, armas, moedas)
 - `oxmysql` (banco de dados)
+- `vorp_animations` (animações do jogador, integração opcional)
 
 ### server.cfg (ordem sugerida)
 ```
@@ -24,6 +25,7 @@ ensure vorp_core
 ensure vorp_menu
 ensure vorp_inventory
 ensure oxmysql
+ensure vorp_animations
 ensure quest_diarias
 ```
 
@@ -104,8 +106,8 @@ add_ace group.admin command.quest_test allow
 add_principal identifier.steam:110000112345678 group.admin
 ```
 
-## Banco de Dados (atualizado)
-O sistema utiliza Unix epoch (segundos) em timestamps para compatibilidade com `FROM_UNIXTIME(...)` usado nas consultas.
+## Banco de Dados
+As tabelas `quest_diarias` e `quest_diarias_history` utilizam colunas `created_at` e `completed_at` do tipo `TIMESTAMP`.
 
 ### Tabelas
 ```sql
@@ -116,9 +118,9 @@ CREATE TABLE IF NOT EXISTS quest_diarias (
   quest_id INT NOT NULL,
   status VARCHAR(20) DEFAULT 'active',
   progress JSON NULL,
-  created_at INT UNSIGNED,
-  updated_at INT UNSIGNED NULL,
-  completed_at INT UNSIGNED NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  completed_at TIMESTAMP NULL DEFAULT NULL,
   npc_index INT NULL,
   npc_name VARCHAR(64) NULL,
   INDEX idx_identifier_charid (identifier, charid),
@@ -132,7 +134,7 @@ CREATE TABLE IF NOT EXISTS quest_diarias_history (
   identifier VARCHAR(50) NOT NULL,
   charid INT NOT NULL,
   quest_id INT NOT NULL,
-  completed_at INT UNSIGNED,
+  completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   rewards_given TEXT,
   npc_index INT NULL,
   npc_name VARCHAR(64) NULL,
@@ -142,27 +144,32 @@ CREATE TABLE IF NOT EXISTS quest_diarias_history (
 );
 ```
 
-### Migração (se já existir com TIMESTAMP)
-```sql
-ALTER TABLE quest_diarias 
-  MODIFY created_at INT UNSIGNED,
-  MODIFY updated_at INT UNSIGNED NULL,
-  MODIFY completed_at INT UNSIGNED NULL,
-  ADD COLUMN npc_index INT NULL,
-  ADD COLUMN npc_name VARCHAR(64) NULL;
-
-ALTER TABLE quest_diarias_history 
-  MODIFY completed_at INT UNSIGNED,
-  ADD COLUMN npc_index INT NULL,
-  ADD COLUMN npc_name VARCHAR(64) NULL;
-```
+### Consultas de Data
+- As consultas de bloqueio diário usam `DATE(created_at)` e `DATE(completed_at)` comparadas com `CURDATE()`.
+- Inserções que usam `os.time()` são aceitas e convertidas automaticamente para `TIMESTAMP` pelo MySQL.
 
 ## Notas e Validações
 - Entregue sempre no mesmo NPC da missão; o servidor valida e registra `npc_index`/`npc_name`.
 - Missão 1: o menu exibe “Entregar Faisão” e aceita todos modelos configurados (`acceptedModels`).
 - Missão 2: entrega via inventário (`requiredItem`), sem manipulação de entidade no cliente.
-- Textos são lidos de `Quest.Config.texts` para mensagens coerentes.
-- `Config.MoreOne = false` limita a 1 missão por dia (controle via histórico).
+- Textos são lidos de `Quest.Config.texts` para mensagens coerentes. O nome do NPC é inserido nos textos de início quando há `{npc}`.
+- `Config.MoreOne = false` limita a 1 missão/dia e agora é aplicado também no `startQuest` do servidor (bloqueio estrito).
+
+## Integração com vorp_animations
+- O cliente inicializa `vorp_animations` no start do recurso.
+- Ao iniciar ou concluir uma missão, é tocada uma animação simples (ex.: `campfire`) por ~1.5s.
+- Se o recurso não estiver presente, o sistema continua funcionando sem animações.
+
+- Depende de `vorp_animations` no `fxmanifest.lua`.
+- Inicialização do cliente: `Animations = exports.vorp_animations.initiate()`.
+- Uso básico: `Animations.playAnimation('campfire', 1500)`.
+- Personalize os nomes e durações das animações de acordo com seu pack de animações.
+
+Arquivos tocados:
+- `fxmanifest.lua`: adicionada dependência `vorp_animations`.
+- `client/quest_client.lua`: inicializa API e executa animações em `questStarted` e `questCompleted`.
+- `server/quest_handler.lua`: aplica bloqueio diário no próprio start (respeita `Config.MoreOne`).
+- `quests/quest1.lua`, `quests/quest_modelo.lua`: substituem `{npc}` por nome real do NPC ao iniciar a missão.
 
 ## Dicas de Desenvolvimento
 - Ative `Config.DevMode` para logs úteis (carregamento de quests, hashes de modelos não aceitos, etc.).

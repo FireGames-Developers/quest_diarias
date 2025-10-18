@@ -143,7 +143,7 @@ local function NotifyAdmins(message)
         if user then
             local character = user.getUsedCharacter
             if character and character.group == 'admin' then
-                TriggerClientEvent('vorp:TipBottom', tonumber(playerId), message, 8000)
+                TriggerClientEvent('vorp:TipBottom', tonumber(playerId), message, 5000)
             end
         end
     end
@@ -225,12 +225,12 @@ end
 RegisterCommand('quest_checkupdate', function(source)
     local user = exports.vorp_core:GetUser(source); if not user then return end
     local character = user.getUsedCharacter; if not character then return end
-    if character.group ~= 'admin' then TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 3000); return end
-    TriggerClientEvent('vorp:TipBottom', source, 'Verificando atualizações...', 3000)
+    if character.group ~= 'admin' then TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 5000); return end
+    TriggerClientEvent('vorp:TipBottom', source, 'Verificando atualizações...', 5000)
     CheckForUpdates(function(hasUpdate, latestVersion)
         if hasUpdate then
             local message = string.format('Nova versão disponível: %s (atual: %s)', latestVersion, Config.Version)
-            TriggerClientEvent('vorp:TipBottom', source, message, 8000)
+            TriggerClientEvent('vorp:TipBottom', source, message, 5000)
         else
             TriggerClientEvent('vorp:TipBottom', source, 'Sistema está atualizado (v' .. Config.Version .. ')', 5000)
         end
@@ -240,7 +240,7 @@ end, false)
 RegisterCommand('quest_update', function(source)
     local user = exports.vorp_core:GetUser(source); if not user then return end
     local character = user.getUsedCharacter; if not character then return end
-    if character.group ~= 'admin' then TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 3000); return end
+    if character.group ~= 'admin' then TriggerClientEvent('vorp:TipBottom', source, 'Você não tem permissão para usar este comando', 5000); return end
     local info = string.format(
         'Quest Diárias Auto-Update Info:\n' ..
         '• Versão atual: %s\n' ..
@@ -254,7 +254,7 @@ RegisterCommand('quest_update', function(source)
         Config.AutoUpdate.AutoDownload and 'Ativado' or 'Desativado',
         Config.AutoUpdate.BackupBeforeUpdate and 'Ativado' or 'Desativado'
     )
-    TriggerClientEvent('vorp:TipBottom', source, info, 10000)
+    TriggerClientEvent('vorp:TipBottom', source, info, 5000)
 end, false)
 
 return Updater

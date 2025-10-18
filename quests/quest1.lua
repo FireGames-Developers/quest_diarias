@@ -11,7 +11,7 @@ local Quest1 = {}
 Quest1.Config = {
     id = 1,
     name = "Caça ao Faisão",
-    description = "Cace um faisão e traga a carcaça nas mãos para o NPC.",
+    description = "Cace um faisão e traga a carcaça nas mãos até mim.",
 
     rewards = {
         money = 50,
@@ -41,13 +41,13 @@ Quest1.Config = {
     },
 
     texts = {
-        start = "Vá até a área marcada e cace um faisão. Traga-o nas mãos para mim.",
-        progress = "Cace um faisão e traga a carcaça nas mãos.",
-        complete = "Obrigada pela ajuda, estou com muita fome, vou preparar esse faisão e me alimentar",
-        alreadyCompleted = "Você já ajudou este NPC hoje. Volte amanhã para novas solicitações.",
-        notDelivered = "Você não me trouxe o faisão ainda, pegue o mais rápido possível pois estou com fome",
-        deliverHint = "Entregue o faisão nas mãos para concluir a missão.",
-        error = "Ocorreu um erro ao processar a missão."
+        start = "{npc}: Ei, você pode me ajudar? Vá até a área marcada e me traga um faisão nas mãos. Estou contando com você.",
+        progress = "Cace um faisão e traga a carcaça nas mãos até {npc}.",
+        complete = "{npc}: Ah, perfeito! Isso vai me quebrar um galho hoje. Obrigada!",
+        alreadyCompleted = "{npc}: Hoje você já me ajudou, volte amanhã que podemos conversar mais.",
+        notDelivered = "{npc}: Sem a ave eu não consigo fazer nada. Volte com um faisão nas mãos.",
+        deliverHint = "{npc}: Traga o faisão nas mãos e fale comigo para entregar.",
+        error = "{npc}: Aconteceu algo estranho por aqui... tente novamente mais tarde."
     }
 }
 
@@ -59,7 +59,7 @@ Quest1.Events = {
 }
 
 -- Iniciar missão
-function Quest1.StartQuest(source)
+function Quest1.StartQuest(source, npcName)
     local area = Quest1.Config.markers.huntingArea
     local blipData = {
         x = area.coords.x,
@@ -72,7 +72,13 @@ function Quest1.StartQuest(source)
         areaStyle = area.blip.sprite
     }
     TriggerClientEvent('quest_diarias:createQuestBlip', source, Quest1.Config.id, blipData)
-    TriggerClientEvent('vorp:TipBottom', source, Quest1.Config.texts.start, 6000)
+    local startText = Quest1.Config.texts.start
+    if npcName and type(startText) == 'string' then
+        startText = startText:gsub('{npc}', npcName)
+    else
+        startText = startText:gsub('{npc}', (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC')
+    end
+    TriggerClientEvent('vorp:TipBottom', source, startText, 5000)
     return true
 end
 
@@ -168,55 +174,9 @@ if not IsDuplicityVersion() then
     -- Cliente: tentativa de entrega da missão 1
     RegisterNetEvent('quest_diarias:quest1:attemptDelivery')
     AddEventHandler('quest_diarias:quest1:attemptDelivery', function()
-        local ped = PlayerPedId()
-    
-        local function GetCurrentNpcIndex()
-            if Config.CurrentNPCIdx then return Config.CurrentNPCIdx end
-            local name = Config.CurrentNPC and Config.CurrentNPC.name
-            if name and Config.NPCs then
-                for i, npc in ipairs(Config.NPCs) do
-                    if npc.name == name then return i end
-                end
-            end
-            return nil
-        end
-        local npcIdx = GetCurrentNpcIndex()
-        local npcName = (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC'
-        if not npcIdx then
-            TriggerEvent('vorp:TipBottom', ('Aproxime-se de %s para entregar o faisão.'):format(npcName), 5000)
-            return
-        end
-
-        VorpCore.Callback.TriggerAsync('quest_diarias:getDeliveryConfig', function(delivery)
-            local accepted = (delivery and delivery.acceptedModels) or {'A_C_PHEASANT_01', 'P_FOXPHEASANT01X', 'P_TAXIDERMYPHEASANT02X'}
-
-            if not Citizen.InvokeNative(0xA911EE21EDF69DAF, ped) then
-                local msg = Quest1.Config.texts and (Quest1.Config.texts.deliverHint or Quest1.Config.texts.notDelivered) or 'Você não está carregando o item certo.'
-                TriggerEvent('vorp:TipBottom', msg, 5000)
-                return
-            end
-
-            local carried = Citizen.InvokeNative(0xD806CD2A4F2C2996, ped)
-            local okModel = false
-            local carriedHash = carried and GetEntityModel(carried)
-            for _, name in ipairs(accepted) do
-                if carriedHash == GetHashKey(name) then okModel = true break end
-            end
-
-            if okModel then
-                SetEntityAsMissionEntity(carried, true, true)
-                DeleteEntity(carried)
-                local completeMsg = Quest1.Config.texts and Quest1.Config.texts.complete or ('Obrigado pela ajuda, ' .. npcName .. ' vai usar isso agora.')
-                TriggerEvent('vorp:TipBottom', completeMsg, 5000)
-                TriggerServerEvent('quest_diarias:completeQuest', Quest1.Config.id, npcIdx)
-            else
-                local notDeliveredMsg = Quest1.Config.texts and (Quest1.Config.texts.notDelivered or Quest1.Config.texts.deliverHint) or 'Modelo inválido para entrega.'
-                TriggerEvent('vorp:TipBottom', notDeliveredMsg, 5000)
-                if Config.DevMode and carriedHash then
-                    print(('[Quest1] Modelo carregado não aceito: hash %s'):format(tostring(carriedHash)))
-                end
-            end
-        end, Quest1.Config.id)
+        DebugPrint('[Quest1] Evento quest1:attemptDelivery acionado')
+        -- Delegar para fluxo genérico de entrega com o ID da missão
+        TriggerEvent('quest_diarias:attemptDelivery', Quest1.Config.id)
     end)
 end
 

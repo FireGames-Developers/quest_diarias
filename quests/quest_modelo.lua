@@ -71,7 +71,7 @@ Quest.Events = {
 }
 
 -- Iniciar missão: cria blip (se configurado) e mostra instruções
-function Quest.StartQuest(source)
+function Quest.StartQuest(source, npcName)
     local markers = Quest.Config.markers
     if markers and markers.huntingArea then
         local area = markers.huntingArea
@@ -87,7 +87,13 @@ function Quest.StartQuest(source)
         }
         TriggerClientEvent('quest_diarias:createQuestBlip', source, Quest.Config.id, blipData)
     end
-    TriggerClientEvent('vorp:TipBottom', source, Quest.Config.texts.start or 'Missão iniciada! Verifique o mapa.', 6000)
+    local startText = Quest.Config.texts.start or 'Missão iniciada! Verifique o mapa.'
+    if npcName and type(startText) == 'string' then
+        startText = startText:gsub('{npc}', npcName)
+    else
+        startText = startText:gsub('{npc}', (Config.CurrentNPC and Config.CurrentNPC.name) or 'NPC')
+    end
+    TriggerClientEvent('vorp:TipBottom', source, startText, 5000)
     return true
 end
 
@@ -130,10 +136,10 @@ function Quest.RunTest(source, params)
             exports.vorp_inventory:addItem(source, itemName, 1, nil, function(success)
                 local msg = success and ('Você recebeu %s para teste.'):format(itemName)
                                     or ('Não foi possível adicionar %s ao inventário.'):format(itemName)
-                TriggerClientEvent('vorp:TipBottom', source, msg, 6000)
+                TriggerClientEvent('vorp:TipBottom', source, msg, 5000)
             end)
         else
-            TriggerClientEvent('vorp:TipBottom', source, 'Inventário cheio. Faça espaço para receber o item.', 6000)
+            TriggerClientEvent('vorp:TipBottom', source, 'Inventário cheio. Faça espaço para receber o item.', 5000)
         end
         return
     end

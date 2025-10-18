@@ -42,21 +42,19 @@ Config.NPCs = {
         name = "Eloah",
         model = "rcsp_odriscolls2_females_01",
         position = { x = -360.810, y = 807.450, z = 116.167, h = 219.017 },
-    },
-    {
-        name = "Karine",
-        model = "msp_saloon1_females_01",
-        position = { x = -1523.831, y = 2518.854, z = 395.698, h = 18.69 },
+        -- voiceName = "0140_U_F_O_BlWHouseWife_01" -- opcional: defina a voz do NPC
     },
     {
         name = "Leonor",
         model = "msp_saintdenis1_females_01",
         position = { x = -352.380, y = 812.168, z = 116.487, h = 182.34 },
+        -- voiceName = "0140_U_F_O_BlWHouseWife_01"
     },
     {
-        name = "Jaciaria",
+        name = "Karine",
         model = "msp_industry3_females_01",
         position = { x = -344.097, y = 806.359, z = 116.885, h = 140.088 },
+        -- voiceName = "0140_U_F_O_BlWHouseWife_01"
     }    
 }
 
@@ -85,3 +83,34 @@ Config.text         = {
     openmenu = "Falar com NPC",
     store = "Missões diárias"
 }
+
+-- Animações de NPC (controle geral)
+-- Preencha com dict/name válidos para animar o NPC atual em eventos.
+-- Caso estejam vazios, o cliente usará um fallback leve ou não animará.
+Config.NPCAnimations = {
+    -- Ao aceitar/iniciar a missão
+    start = { dict = "script_campfire@lighting_fire@male_male", name = "light_fire_b_p2_male_b", flag = 17, duration = 2500 },
+    -- Ao tentar entregar e ainda não tiver concluído ou for NPC/objeto inválido
+    notReady = { dict = "amb_misc@world_human_wash_kneel_river@female_a@idle_a", name = "idle_c", flag = 17, duration = 2000 },
+    -- Ao concluir a missão (comemoração)
+    complete = { dict = "mech_inventory@crafting@fallbacks", name = "full_craft_and_stow", flag = 27, duration = 3000 }
+}
+
+-- Falas de NPC (áudio nativo)
+-- Ajuste os nomes de fala e a voz padrão conforme preferir.
+-- É possível definir voiceName por NPC acima em Config.NPCs.
+Config.NPCSpeech = {
+    -- Ao abrir o menu de conversa com o NPC
+    openMenu = { speech = "HEY_HOWS_IT_GOING",   param = "SPEECH_PARAMS_FORCE_NORMAL" },
+    -- Ao aceitar/iniciar a missão
+    start    = { speech = "GREET_PLAYER",        param = "SPEECH_PARAMS_FORCE_NORMAL" },
+    -- Ao tentar entregar sem estar pronto/errado
+    notReady = { speech = "FAREWELL_NO_SALE",    param = "SPEECH_PARAMS_FORCE_NORMAL" },
+    -- Ao concluir a missão
+    complete = { speech = "GENERIC_THANKS",      param = "SPEECH_PARAMS_FORCE_NORMAL" },
+    -- Ao fechar o menu do NPC
+    closeMenu = { speech = "GENERIC_BYE",        param = "SPEECH_PARAMS_FORCE_NORMAL" }
+}
+
+-- Voz padrão usada se o NPC não tiver voiceName definido (ajuste conforme seu gosto)
+Config.NPCSpeechDefaultVoice = "0140_U_F_O_BlWHouseWife_01"

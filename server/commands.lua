@@ -70,7 +70,7 @@ RegisterCommand('quest', function(source, args, raw)
         local status = 'Pendente'
         if progress and progress.delivered then status = 'Concluída' end
         local summary = ('%s\n%s\nStatus: %s'):format(name, desc, status)
-        TriggerClientEvent('vorp:TipBottom', _source, summary, 6000)
+        TriggerClientEvent('vorp:TipBottom', _source, summary, 5000)
     end)
 end, false)
 
@@ -97,13 +97,13 @@ RegisterCommand('quest_list', function(source, args, rawCommand)
         ['@charid'] = charid
     }, function(result)
         if result and #result > 0 then
-            TriggerClientEvent('vorp:TipBottom', _source, "Suas quests:", 2000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Suas quests:", 5000)
             for _, quest in pairs(result) do
                 local status = quest.status == 'active' and "Ativa" or "Completada"
-                TriggerClientEvent('vorp:TipBottom', _source, quest.quest_id .. " - " .. status, 3000)
+                TriggerClientEvent('vorp:TipBottom', _source, quest.quest_id .. " - " .. status, 5000)
             end
         else
-            TriggerClientEvent('vorp:TipBottom', _source, "Você não possui quests", 4000)
+            TriggerClientEvent('vorp:TipBottom', _source, "Você não possui quests", 5000)
         end
     end)
 end, false)
@@ -131,7 +131,7 @@ local function ExecuteQuestReset(_source, identifier, charid, questId)
             else
                 msg = ('Nenhuma entrada de histórico de hoje para missão %s.'):format(tostring(questId))
             end
-            TriggerClientEvent('vorp:TipBottom', _source, msg, 6000)
+            TriggerClientEvent('vorp:TipBottom', _source, msg, 5000)
         end)
     end)
 end
@@ -153,7 +153,7 @@ RegisterCommand('quest_reset', function(source, args, rawCommand)
     local questId = tonumber(args and args[1])
 
     if not questId then
-        MySQL.Async.fetchAll('SELECT quest_id FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(FROM_UNIXTIME(completed_at)) = CURDATE() ORDER BY completed_at DESC LIMIT 1', {
+        MySQL.Async.fetchAll('SELECT quest_id FROM quest_diarias_history WHERE identifier = @identifier AND charid = @charid AND DATE(completed_at) = CURDATE() ORDER BY completed_at DESC LIMIT 1', {
             ['@identifier'] = identifier,
             ['@charid'] = charid
         }, function(rows)
@@ -183,7 +183,7 @@ RegisterCommand('quest_test', function(source, args, raw)
     end
 
     if not IsPlayerAceAllowed(_source, 'command.quest_test') then
-        TriggerClientEvent('vorp:TipBottom', _source, 'Você não tem permissão para este comando', 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, 'Você não tem permissão para este comando', 5000)
         return
     end
 
@@ -196,21 +196,21 @@ RegisterCommand('quest_test', function(source, args, raw)
 
     local qm = LoadQuestManager()
     if not qm then
-        TriggerClientEvent('vorp:TipBottom', _source, 'Erro ao carregar gerenciador de missões.', 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, 'Erro ao carregar gerenciador de missões.', 5000)
         return
     end
 
     local questId = tonumber(args and args[2]) or (Config and Config.mission) or 1
     local quest = qm.GetQuest(questId)
     if not quest then
-        TriggerClientEvent('vorp:TipBottom', _source, ('Missão %s não encontrada para teste.'):format(tostring(questId)), 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, ('Missão %s não encontrada para teste.'):format(tostring(questId)), 5000)
         return
     end
 
     if quest.RunTest and type(quest.RunTest) == 'function' then
         quest.RunTest(_source, { distance = distance, dead = true })
-        TriggerClientEvent('vorp:TipBottom', _source, ('Teste da missão %d executado (distância %.1fm)'):format(questId, distance), 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, ('Teste da missão %d executado (distância %.1fm)'):format(questId, distance), 5000)
     else
-        TriggerClientEvent('vorp:TipBottom', _source, 'Esta missão não possui rotina de teste configurada.', 4000)
+        TriggerClientEvent('vorp:TipBottom', _source, 'Esta missão não possui rotina de teste configurada.', 5000)
     end
 end, false)
