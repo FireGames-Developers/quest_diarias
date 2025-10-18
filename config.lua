@@ -101,7 +101,7 @@ Config.NPCAnimations = {
 -- É possível definir voiceName por NPC acima em Config.NPCs.
 Config.NPCSpeech = {
     -- Ao abrir o menu de conversa com o NPC
-    openMenu = { speech = "HEY_HOWS_IT_GOING",   param = "SPEECH_PARAMS_FORCE_NORMAL" },
+    openMenu = { speech = "GENERIC_HI",          param = "SPEECH_PARAMS_FORCE_NORMAL" },
     -- Ao aceitar/iniciar a missão
     start    = { speech = "GREET_PLAYER",        param = "SPEECH_PARAMS_FORCE_NORMAL" },
     -- Ao tentar entregar sem estar pronto/errado
