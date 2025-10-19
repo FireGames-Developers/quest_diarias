@@ -3,7 +3,7 @@ Config              = {}
 -- DEBUG
 Config.DevMode      = true
 Config.Version      = "2.1.0"
-Config.MoreOne     = false -- true = permite repetir ilimitado no dia; false = uma por dia
+Config.MoreOne     = true -- true = permite repetir ilimitado no dia; false = uma por dia
 
 -- AUTO UPDATE SYSTEM
 Config.AutoUpdate = {
